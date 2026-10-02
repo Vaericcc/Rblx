@@ -39,7 +39,9 @@ function Canvas.new(parent: Instance, editable: boolean): Canvas
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(0.5, 0.5),
 		ClipsDescendants = true,
-		Make.corner(UDim.new(0, 6)),
+		Active = true, -- swallow touches so the camera doesn't pan while drawing
+		Make.corner(UDim.new(0, 10)),
+		Make("UIStroke", { Color = Color3.fromRGB(0, 0, 0), Thickness = 1, Transparency = 0.6 }),
 		Make("UIAspectRatioConstraint", { AspectRatio = 1 }),
 		Parent = parent,
 	})

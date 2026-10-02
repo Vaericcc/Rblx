@@ -24,21 +24,32 @@ end
 
 Net.remote = getRemote()
 
--- Server -> client actions
+-- Server -> client
 Net.S2C = {
-	Lobby = "Lobby",
+	-- lobby
+	LobbyInit = "LobbyInit", -- { modes, minPlayers, maxPlayers }
+	RoomList = "RoomList", -- { rooms = {...} } rooms visible to this player
+	RoomState = "RoomState", -- the room you're in, or nil when you're in none
+	PadState = "PadState", -- the pad you're standing on, or nil
+	-- match
 	Phase = "Phase",
 	Showcase = "Showcase",
 	ShowcaseFocus = "ShowcaseFocus",
 	Vote = "Vote",
 	Results = "Results",
-	Toast = "Toast",
+	MatchEnd = "MatchEnd",
 	SubmitAck = "SubmitAck",
+	Toast = "Toast",
 }
 
--- Client -> server actions
+-- Client -> server
 Net.C2S = {
-	VoteMode = "VoteMode",
+	Hello = "Hello", -- client is ready to receive lobby data
+	CreateRoom = "CreateRoom", -- { visibility = "public" | "friends" }
+	JoinRoom = "JoinRoom", -- roomId
+	LeaveRoom = "LeaveRoom",
+	StartRoom = "StartRoom", -- host only
+	VoteMode = "VoteMode", -- modeId (applies to your current room or pad)
 	Submit = "Submit",
 	Vote = "Vote",
 }

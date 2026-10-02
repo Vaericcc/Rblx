@@ -1,6 +1,7 @@
 --!strict
 -- Tiny declarative Instance builder: Make("Frame", { props..., children })
 local Theme = require(script.Parent.Theme)
+local Responsive = require(script.Parent.Responsive)
 
 local function Make(className: string, props: { [any]: any }): any
 	local inst = Instance.new(className)
@@ -77,7 +78,7 @@ function M.button(text: string, color: Color3, onClick: () -> (), props: { [any]
 		TextColor3 = if color == Theme.accent then Theme.bg else Theme.text,
 		BackgroundColor3 = color,
 		AutoButtonColor = true,
-		Size = UDim2.new(0, 160, 0, 44),
+		Size = UDim2.new(0, 160, 0, Responsive.touchSize()),
 		M.corner(),
 	}
 	if props then for k, v in props do p[k] = v end end
@@ -98,7 +99,7 @@ function M.input(placeholder: string, maxLen: number, props: { [any]: any }?)
 		ClearTextOnFocus = false,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		TextWrapped = true,
-		Size = UDim2.new(1, 0, 0, 44),
+		Size = UDim2.new(1, 0, 0, Responsive.touchSize()),
 		M.corner(UDim.new(0, 8)),
 		M.pad(10),
 	}
@@ -122,6 +123,33 @@ function M.card(props: { [any]: any }?)
 	}
 	if props then for k, v in props do p[k] = v end end
 	return Make("Frame", p)
+end
+
+function M.spacer(height: number, order: number?)
+	return Make("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, height), LayoutOrder = order or 0 })
+end
+
+-- Horizontal row that lays children out left to right.
+function M.row(height: number, padding: number?, props: { [any]: any }?)
+	local p = {
+		BackgroundTransparency = 1,
+		Size = UDim2.new(1, 0, 0, height),
+		M.list(Enum.FillDirection.Horizontal, padding or 8),
+	}
+	if props then for k, v in props do p[k] = v end end
+	return Make("Frame", p)
+end
+
+-- Pill-style toggle button used for tabs and segmented choices.
+function M.pill(text: string, selected: boolean, onClick: () -> (), props: { [any]: any }?)
+	local p = {
+		Size = UDim2.new(0, 110, 0, Responsive.touchSize() - 6),
+		TextSize = 14,
+		BackgroundColor3 = if selected then Theme.accent else Theme.panelAlt,
+		TextColor3 = if selected then Theme.bg else Theme.text,
+	}
+	if props then for k, v in props do p[k] = v end end
+	return M.button(text, p.BackgroundColor3, onClick, p)
 end
 
 return M

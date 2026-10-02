@@ -1,13 +1,21 @@
 --!strict
--- Client router: receives server actions, mounts the right screen, handles submission.
+--[[
+	Client router.
+	Lobby state: the 3D hub is visible; the Lobby module draws the matchmaking UI.
+	Match state: a full-screen overlay hosts the current phase screen; movement is disabled.
+]]
 local Players = game:GetService("Players")
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local Net = require(Shared.Net)
+
 local UI = script.Parent.UI
 local Make = require(UI.Make)
 local Theme = require(UI.Theme)
 local Hud = require(UI.Hud)
+local Responsive = require(UI.Responsive)
+local Controls = require(UI.Controls)
+
 local Screens = script.Parent.Screens
 local Lobby = require(Screens.Lobby)
 local TextPhases = require(Screens.TextPhases)
@@ -20,48 +28,53 @@ local Results = require(Screens.Results)
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
+----------------------------------------------------------------------------
+-- Root GUI
+
 local gui = Make("ScreenGui", {
 	Name = "StoryDub",
 	ResetOnSpawn = false,
-	IgnoreGuiInset = true,
+	IgnoreGuiInset = false, -- respect the top bar and phone notches
 	ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 	Parent = playerGui,
 })
-local backdrop = Make("Frame", {
+local scale = Make("UIScale", { Scale = Responsive.scale(), Parent = gui })
+
+-- Match overlay (hidden in lobby)
+local matchRoot = Make("Frame", {
 	BackgroundColor3 = Theme.bg,
 	BorderSizePixel = 0,
 	Size = UDim2.fromScale(1, 1),
-	Make.pad(16),
+	Visible = false,
+	Active = true,
+	Make.pad(if Responsive.isCompact() then 10 else 16),
 	Parent = gui,
 })
-local hud = Hud.new(backdrop)
+local hud = Hud.new(matchRoot)
+local topInset, bottomInset = hud:contentInsets()
 local content = Make("Frame", {
 	BackgroundTransparency = 1,
-	Size = UDim2.new(1, 0, 1, -96),
-	Position = UDim2.new(0, 0, 0, 96),
-	Parent = backdrop,
+	Size = UDim2.new(1, 0, 1, -(topInset + bottomInset)),
+	Position = UDim2.new(0, 0, 0, topInset),
+	Parent = matchRoot,
 })
-local toast = Make.label("", 16, {
+
+-- Lobby UI (hidden during a match)
+local lobby = Lobby.new(gui)
+
+-- Toasts
+local toast = Make.label("", 15, {
 	BackgroundColor3 = Theme.panelAlt,
 	BackgroundTransparency = 1,
 	TextTransparency = 1,
-	AnchorPoint = Vector2.new(0.5, 1),
-	Position = UDim2.new(0.5, 0, 1, -20),
-	Size = UDim2.new(0, 520, 0, 40),
+	AnchorPoint = Vector2.new(0.5, 0),
+	Position = UDim2.new(0.5, 0, 0, 12),
+	Size = UDim2.new(0, if Responsive.isCompact() then 320 else 520, 0, 40),
 	TextXAlignment = Enum.TextXAlignment.Center,
 	ZIndex = 100,
 	Make.corner(),
 	Parent = gui,
 })
-
-local current: any = nil
-local autoSubmitThread: thread? = nil
-
-local ctx = {
-	hud = hud,
-	lobbyVote = nil :: string?,
-	markDirty = function() hud:unmarkSubmitted() end,
-}
 
 local function showToast(text: string)
 	toast.Text = text
@@ -75,8 +88,35 @@ local function showToast(text: string)
 	end)
 end
 
+----------------------------------------------------------------------------
+-- Mode switching
+
+local inMatch = false
+
+local function setInMatch(active: boolean)
+	if inMatch == active then return end
+	inMatch = active
+	matchRoot.Visible = active
+	lobby:setVisible(not active)
+	Controls.setGameplayEnabled(not active)
+end
+
+----------------------------------------------------------------------------
+-- Screen mounting
+
+local current: any = nil
+local autoSubmitThread: thread? = nil
+
+local ctx = {
+	hud = hud,
+	markDirty = function() hud:unmarkSubmitted() end,
+}
+
 local function unmount()
-	if autoSubmitThread then task.cancel(autoSubmitThread) autoSubmitThread = nil end
+	if autoSubmitThread then
+		task.cancel(autoSubmitThread)
+		autoSubmitThread = nil
+	end
 	if current then
 		current.destroy()
 		current = nil
@@ -86,12 +126,12 @@ end
 
 local function submitCurrent()
 	if not current or not current.collect then return end
-	local data = current.collect()
-	Net.remote:FireServer(current.submitAction or Net.C2S.Submit, data)
+	Net.remote:FireServer(current.submitAction or Net.C2S.Submit, current.collect())
 	hud:markSubmitted()
 end
 
 local function mount(screenFn: (Frame, any, any) -> any, data: any, endsAt: number?)
+	setInMatch(true)
 	unmount()
 	current = screenFn(content, data, ctx)
 	if current.collect then
@@ -115,36 +155,50 @@ local PHASE_SCREENS: { [string]: (Frame, any, any) -> any } = {
 	dub = Dub.show,
 }
 
-Net.remote.OnClientEvent:Connect(function(action: string, data: any)
-	if action == Net.S2C.Lobby then
-		-- Lobby re-broadcasts every second; only rebuild when it isn't already up.
-		if current and current.isLobby then
-			current.destroy()
-			current = Lobby.show(content, data, ctx)
-			current.isLobby = true
-		else
-			mount(Lobby.show, data, nil)
-			current.isLobby = true
-		end
-	elseif action == Net.S2C.Phase then
+----------------------------------------------------------------------------
+-- Server messages
+
+local handlers: { [string]: (any) -> () } = {
+	[Net.S2C.LobbyInit] = function(data) lobby:setInit(data) end,
+	[Net.S2C.RoomList] = function(data) lobby:setRooms(data.rooms or {}) end,
+	[Net.S2C.RoomState] = function(data) lobby:setRoom(data) end,
+	[Net.S2C.PadState] = function(data) lobby:setPad(data) end,
+
+	[Net.S2C.Phase] = function(data)
 		local screen = PHASE_SCREENS[data.kind]
-		if screen then
-			mount(screen, data.payload, data.endsAt)
-			hud:set(data.title, data.instructions, data.endsAt, true)
-		end
-	elseif action == Net.S2C.Showcase then
-		mount(Showcase.show, data, nil)
-	elseif action == Net.S2C.ShowcaseFocus then
-		if current and current.focus then
-			current.focus(data.projectIndex, data.frameIndex)
-		end
-	elseif action == Net.S2C.Vote then
-		mount(Vote.show, data, data.endsAt)
-	elseif action == Net.S2C.Results then
-		mount(Results.show, data, nil)
-	elseif action == Net.S2C.Toast then
-		showToast(tostring(data))
-	elseif action == Net.S2C.SubmitAck then
-		hud:markSubmitted()
-	end
+		if not screen then return end
+		mount(screen, data.payload, data.endsAt)
+		hud:set(data.title, data.instructions, data.endsAt, true)
+	end,
+	[Net.S2C.Showcase] = function(data) mount(Showcase.show, data, nil) end,
+	[Net.S2C.ShowcaseFocus] = function(data)
+		if current and current.focus then current.focus(data.projectIndex, data.frameIndex) end
+	end,
+	[Net.S2C.Vote] = function(data) mount(Vote.show, data, data.endsAt) end,
+	[Net.S2C.Results] = function(data) mount(Results.show, data, nil) end,
+	[Net.S2C.MatchEnd] = function()
+		unmount()
+		setInMatch(false)
+	end,
+	[Net.S2C.SubmitAck] = function() hud:markSubmitted() end,
+	[Net.S2C.Toast] = function(data) showToast(tostring(data)) end,
+}
+
+Net.remote.OnClientEvent:Connect(function(action: string, data: any)
+	local handler = handlers[action]
+	if handler then handler(data) end
+end)
+
+-- Tell the server we're listening; it answers with LobbyInit and the room list.
+Net.remote:FireServer(Net.C2S.Hello)
+
+-- Keep the scale right if the window is resized or the device rotates.
+Responsive.changed:Connect(function()
+	scale.Scale = Responsive.scale()
+end)
+
+-- Re-apply frozen movement if the character respawns mid-match.
+player.CharacterAdded:Connect(function()
+	task.wait(0.5)
+	Controls.setGameplayEnabled(not inMatch)
 end)

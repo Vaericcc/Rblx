@@ -3,10 +3,14 @@
 
 local Config = {
 	MIN_PLAYERS = 2,
-	MAX_PLAYERS = 12,
+	MAX_PLAYERS = 10, -- per room
 
-	LOBBY_VOTE_SECONDS = 20,
-	INTERMISSION_SECONDS = 6,
+	-- Lobby
+	ROOM_LIST_REFRESH_SECONDS = 2,
+	PAD_COUNT = 4,
+	PAD_COUNTDOWN_SECONDS = 20, -- once a pad has MIN_PLAYERS, the match starts after this
+	PAD_SCAN_SECONDS = 0.25,
+	INTERMISSION_SECONDS = 5,
 	SUBMIT_GRACE_SECONDS = 2, -- how long the server waits after a phase timer for late submissions
 
 	SHOWCASE_TITLE_SECONDS = 4,

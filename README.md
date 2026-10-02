@@ -27,9 +27,27 @@ and each phase has an `offset`: 0 means you work on your own story, 1 means the 
 the player to your left, and so on. That single number is what turns a normal mode into
 a swap mode, so new variants are a few lines, no new code.
 
+## Lobby and matchmaking
+
+The lobby is a walkable 3D hub. There are two ways into a match, and many matches run at once:
+
+- **Matchmaking UI.** Press **Play**. Create a room as **Public** or **Friends Only** (only the
+  host's Roblox friends can see or join it), or join an open room from the list. Members vote on
+  a mode; the host starts. Host migrates if the host leaves.
+- **Platforms.** Walk onto one of the glowing pads. When enough players are standing on it a
+  countdown starts, shown on the billboard above the pad and in a banner on screen where you
+  can vote for a mode. Step off to leave.
+
+## Cross-platform
+
+Phone, tablet and PC share one UI. Screens narrower than about 820px switch to a stacked layout
+with the drawing canvas on top and everything else scrolling below. Touch drawing is supported,
+tap targets grow on touch devices, and during a match the thumbstick, jump button and character
+movement are disabled so nothing gets in the way. See `docs/DESIGN.md` for the full rules.
+
 ## Round flow
 
-1. **Lobby.** Players vote on a mode. Modes that need more players than are present are locked.
+1. **Match forms** from a room or a platform (see above).
 2. **Phases.** The server runs the mode's phases in order, assigning each project to a worker
    and sending them only what they should see. Timers are synchronized with server time.
    Players can submit early and keep editing; the server applies the latest submission when
@@ -52,18 +70,26 @@ src/shared/
   Strokes.lua                Stroke format + server-side sanitizer
   Text.lua                   Text trimming/length limits
 src/server/
-  Main.server.lua            Lobby → vote → round loop
+  Main.server.lua            Routes client messages, builds the hub, refreshes room lists
+  Rooms.lua                  Matchmaking: UI rooms (public / friends only) and pad rooms; runs a Round per room
+  Pads.lua                   Builds the platforms and scans who is standing on them
   Round.lua                  Phase runner, assignment, showcase, voting, scoring
   Projects.lua               Storyboard state and all untrusted-input handling
   Filter.lua                 TextService filtering for every player-written string
 src/client/
-  Main.client.lua            Router: mounts screens from server actions, auto-submits
+  Main.client.lua            Router: lobby vs match state, mounts screens, auto-submits
+  UI/Responsive.lua          Compact vs regular detection, UI scale, touch sizes
+  UI/Layout.lua              split() = side-by-side on regular, stacked on compact
+  UI/Controls.lua            Disables movement / touch controls during a match
   UI/Canvas.lua              Normalized-coordinate drawing surface (draw + playback)
-  UI/Hud.lua                 Phase title, instructions, countdown, submit button
+  UI/Hud.lua                 Phase title, countdown, submit button (bottom bar on compact)
   UI/Make.lua, Theme.lua     Declarative UI builder and palette
-  UI/StoryInfo.lua           Premise/cast/script side panel
-  Screens/                   Lobby, TextPhases (premise/cast/script/caption), Draw, Dub,
+  UI/ModeGrid.lua            Mode cards with vote counts
+  UI/StoryInfo.lua           Premise/cast/script reference panel
+  Screens/Lobby.lua          Hub UI: Play button, Join/Create/Your Room panel, pad banner
+  Screens/                   TextPhases (premise/cast/script/caption), Draw, Dub,
                              Showcase, Vote, Results
+docs/DESIGN.md               The brief this build follows
 ```
 
 ## Building
@@ -79,7 +105,8 @@ rojo serve
 
 Open the place in Roblox Studio, enable **Voice Chat** in Game Settings → Communication
 (needed for live dubbing; everything else works without it), and run a local server with
-2 or more players (Test → Clients and Servers) to try a round.
+2 or more players (Test → Clients and Servers). Use the Device emulator to check phone and
+tablet layouts.
 
 ## Safety notes
 
