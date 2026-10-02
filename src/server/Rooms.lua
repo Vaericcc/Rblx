@@ -13,6 +13,7 @@ local Config = require(Shared.Config)
 local Modes = require(Shared.Modes)
 local Net = require(Shared.Net)
 local Round = require(script.Parent.Round)
+local Studios = require(script.Parent.Studios)
 
 export type Room = {
 	id: string,
@@ -429,6 +430,11 @@ function Rooms.startMatch(room: Room)
 	Rooms.pushListToAll()
 
 	task.spawn(function()
+		-- Private studio: only this group hears each other over proximity voice.
+		local studio = Studios.acquire()
+		Studios.enter(studio, players)
+		local respawnConns = Studios.watchRespawns(studio, players)
+
 		local round = Round.new(mode, players)
 		room.round = round
 		local ok, err = pcall(function()
@@ -447,6 +453,9 @@ function Rooms.startMatch(room: Room)
 		end
 		round:destroy()
 		room.round = nil
+		for _, c in respawnConns do c:Disconnect() end
+		Studios.leave(players)
+		Studios.release(studio)
 		Rooms.endMatch(room)
 	end)
 end

@@ -38,6 +38,9 @@ The lobby is a walkable 3D hub. There are two ways into a match, and many matche
   countdown starts, shown on the billboard above the pad and in a banner on screen where you
   can vote for a mode. Step off to leave.
 
+When a match starts, its players are teleported into a private studio far from the hub, so
+proximity voice chat only carries their own group. They return to the hub when it ends.
+
 ## Cross-platform
 
 Phone, tablet and PC share one UI. Screens narrower than about 820px switch to a stacked layout
