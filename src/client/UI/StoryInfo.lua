@@ -5,7 +5,7 @@ local Theme = require(script.Parent.Theme)
 
 local StoryInfo = {}
 
-function StoryInfo.build(parent: Instance, opts: { premise: any?, cast: any?, prompt: string?, ownerName: string?, lines: any? }): Frame
+function StoryInfo.build(parent: Instance, opts: { premise: any?, cast: any?, roles: any?, prompt: string?, ownerName: string?, lines: any? }): Frame
 	local card = Make.card({
 		Size = UDim2.new(1, 0, 1, 0),
 		Make.list(nil, 8),
@@ -27,7 +27,9 @@ function StoryInfo.build(parent: Instance, opts: { premise: any?, cast: any?, pr
 	if opts.cast and #opts.cast > 0 then
 		Make.heading("Cast", 14, { TextColor3 = Theme.accent, Parent = card })
 		for _, c in opts.cast do
-			Make.label(("<b>%s</b>  <font color=\"#aaaabe\">%s</font>"):format(c.name, c.trait or ""), 15, {
+			local role = opts.roles and opts.roles[c.name]
+			local who = if role then ("  <font color=\"#ffc43d\">🎤 %s</font>"):format(role.name) else ""
+			Make.label(("<b>%s</b>  <font color=\"#aaaabe\">%s</font>%s"):format(c.name, c.trait or "", who), 15, {
 				RichText = true,
 				Size = UDim2.new(1, 0, 0, 22),
 				Parent = card,

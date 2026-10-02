@@ -14,17 +14,21 @@ local Projects = require(script.Parent.Projects)
 local Round = {}
 Round.__index = Round
 
+type Worker = { player: Player, projectIndex: number? } -- projectIndex nil = works across projects (claim / role dub)
+
 export type Round = typeof(setmetatable({} :: {
 	mode: Modes.Mode,
 	players: { Player },
 	projects: { Projects.Project },
 	scores: { [number]: number },
-	phaseIndex: number,
-	-- current phase bookkeeping
-	assignments: { [number]: number }, -- userId -> project index they're working on
+	phase: Modes.Phase?,
+	workers: { [number]: Worker }, -- userId -> worker
 	pending: { [number]: boolean }, -- userId -> still waiting on their submission
 	submissions: { [number]: any }, -- userId -> raw data
 	connections: { RBXScriptConnection },
+	-- showcase
+	currentActorId: number?,
+	skipRequested: boolean,
 }, Round))
 
 local AWARDS = {
@@ -32,6 +36,16 @@ local AWARDS = {
 	{ id = "best_art", name = "Best Art", emoji = "🎨" },
 	{ id = "best_dub", name = "Best Dub", emoji = "🎤" },
 	{ id = "plot_twist", name = "Plot Twist", emoji = "🌀" },
+}
+
+local PHASE_TEXT = {
+	premise = { "Write your premise", "Give your story a title and a one-sentence hook." },
+	cast = { "Create the cast", "Invent the characters. Name them and give each one a defining trait." },
+	claim = { "Claim your roles", "Pick the characters you'll voice. Tap a name to claim it. Unclaimed roles get handed out." },
+	script = { "Write the script", "Write what each character says, panel by panel. Someone else will draw it." },
+	draw = { "Draw!", "Bring the story to life. Fill every panel." },
+	dub = { "Write your lines", "Write what your characters say in each panel. You'll perform them live in the showcase." },
+	caption = { "Describe what you see", "You only get the drawing. In one sentence, what is happening?" },
 }
 
 local function now(): number
@@ -44,11 +58,13 @@ function Round.new(mode: Modes.Mode, players: { Player }): Round
 	self.players = players
 	self.projects = {}
 	self.scores = {}
-	self.phaseIndex = 0
-	self.assignments = {}
+	self.phase = nil
+	self.workers = {}
 	self.pending = {}
 	self.submissions = {}
 	self.connections = {}
+	self.currentActorId = nil
+	self.skipRequested = false
 	for i, player in players do
 		self.projects[i] = Projects.new(i, player)
 		self.scores[player.UserId] = 0
@@ -64,7 +80,6 @@ function Round.broadcast(self: Round, action: string, data: any)
 	end
 end
 
--- Drop players who left so assignments only point at people who can submit.
 function Round.pruneLeavers(self: Round)
 	for i = #self.players, 1, -1 do
 		if not self.players[i].Parent then
@@ -73,114 +88,172 @@ function Round.pruneLeavers(self: Round)
 	end
 end
 
+----------------------------------------------------------------------------
+-- Assignment
+
 -- Project i is worked on by the player `offset` seats away from its owner.
-function Round.assign(self: Round, offset: number)
-	self.assignments = {}
+function Round.assignByOffset(self: Round, offset: number)
+	self.workers = {}
 	local n = #self.players
 	if n == 0 then return end
-	-- Build owner order from projects (projects keep original seats even if someone left).
 	local seatOf: { [number]: number } = {}
 	for seat, player in self.players do
 		seatOf[player.UserId] = seat
 	end
 	for _, project in self.projects do
-		local ownerSeat = seatOf[project.ownerId]
-		if not ownerSeat then
-			-- owner left: hand their project to whoever sits where they would have
-			ownerSeat = ((project.index - 1) % n) + 1
-		end
+		local ownerSeat = seatOf[project.ownerId] or (((project.index - 1) % n) + 1)
 		local workerSeat = ((ownerSeat - 1 + offset) % n) + 1
 		local worker = self.players[workerSeat]
-		-- If two projects collide on the same worker (because people left), pick the first free player.
-		if self.assignments[worker.UserId] then
+		if self.workers[worker.UserId] then
+			-- collision (someone left): first free player takes it
 			for _, candidate in self.players do
-				if not self.assignments[candidate.UserId] then
+				if not self.workers[candidate.UserId] then
 					worker = candidate
 					break
 				end
 			end
 		end
-		self.assignments[worker.UserId] = project.index
+		self.workers[worker.UserId] = { player = worker, projectIndex = project.index }
 	end
 end
 
--- Build what each worker needs to see for this phase.
-function Round.payloadFor(self: Round, phase: Modes.Phase, project: Projects.Project)
+function Round.assignEveryone(self: Round)
+	self.workers = {}
+	for _, player in self.players do
+		self.workers[player.UserId] = { player = player, projectIndex = nil }
+	end
+end
+
+-- Players who hold at least one role anywhere.
+function Round.assignRoleHolders(self: Round)
+	self.workers = {}
+	for _, player in self.players do
+		for _, project in self.projects do
+			if #Projects.rolesOf(project, player.UserId) > 0 then
+				self.workers[player.UserId] = { player = player, projectIndex = nil }
+				break
+			end
+		end
+	end
+end
+
+----------------------------------------------------------------------------
+-- Payloads
+
+function Round.rolesSnapshot(self: Round)
+	local roles = {}
+	for i, project in self.projects do
+		roles[tostring(i)] = project.roles
+	end
+	return roles
+end
+
+function Round.payloadFor(self: Round, phase: Modes.Phase, worker: Worker)
 	local kind = phase.kind
+	local project = if worker.projectIndex then self.projects[worker.projectIndex] else nil
+
+	if kind == "claim" then
+		local list = {}
+		for i, p in self.projects do
+			table.insert(list, {
+				index = i,
+				ownerId = p.ownerId,
+				ownerName = p.ownerName,
+				title = p.premise and p.premise.title or "Untitled",
+				logline = p.premise and p.premise.logline or "",
+				cast = p.cast,
+			})
+		end
+		return { projects = list, roles = self:rolesSnapshot(), maxRoles = 2 }
+	elseif kind == "dub" and phase.roles then
+		local list = {}
+		for _, p in self.projects do
+			local mine = Projects.rolesOf(p, worker.player.UserId)
+			if #mine > 0 then
+				local ser = Projects.serialize(p, false)
+				ser.myRoles = mine
+				table.insert(list, ser)
+			end
+		end
+		return { projects = list }
+	end
+
+	assert(project, "per-project phase without a project")
 	if kind == "premise" then
 		return { projectIndex = project.index }
 	elseif kind == "cast" then
 		return { projectIndex = project.index, premise = project.premise, count = phase.count or 3 }
 	elseif kind == "script" then
-		return { projectIndex = project.index, premise = project.premise, cast = project.cast, panels = phase.panels or 3 }
+		return { projectIndex = project.index, premise = project.premise, cast = project.cast, roles = project.roles, panels = phase.panels or 3 }
 	elseif kind == "draw" then
 		local isChain = next(project.captions) ~= nil or (phase.offset > 1 and self.mode.id == "telephone")
 		return {
 			projectIndex = project.index,
 			panels = phase.panels or 1,
 			startIndex = #project.panels + 1,
-			-- Telephone drawers see only the latest caption, nobody else's work.
 			prompt = if isChain then Projects.latestPrompt(project) else nil,
 			premise = if isChain then nil else project.premise,
 			cast = if isChain then {} else project.cast,
+			roles = if isChain then {} else project.roles,
 			lines = if isChain then {} else project.lines,
 			ownerName = project.ownerName,
 		}
 	elseif kind == "dub" then
-		return {
-			projectIndex = project.index,
-			blind = phase.blind == true,
-			project = Projects.serialize(project, phase.blind == true),
-		}
+		local ser = Projects.serialize(project, phase.blind == true)
+		return { projects = { ser }, blind = phase.blind == true }
 	elseif kind == "caption" then
-		local lastPanel = project.panels[#project.panels]
-		return {
-			projectIndex = project.index,
-			panel = lastPanel,
-			panelIndex = #project.panels,
-		}
+		return { projectIndex = project.index, panel = project.panels[#project.panels], panelIndex = #project.panels }
 	end
-	return { projectIndex = project.index }
+	return {}
 end
 
-local PHASE_TEXT = {
-	premise = { "Write your premise", "Give your story a title and a one-sentence hook." },
-	cast = { "Create the cast", "Invent the characters. Name them and give each one a defining trait." },
-	script = { "Write the script", "Write what each character says, panel by panel. Someone else will draw it." },
-	draw = { "Draw!", "Bring the story to life. Fill every panel." },
-	dub = { "Dub it", "Put words in their mouths. During the showcase you'll perform these lines." },
-	caption = { "Describe what you see", "You only get the drawing. In one sentence, what is happening?" },
-}
+----------------------------------------------------------------------------
+-- Phase runner
 
 function Round.runPhase(self: Round, phase: Modes.Phase)
 	self:pruneLeavers()
 	if #self.players == 0 then return end
-	self:assign(phase.offset)
+	self.phase = phase
 	self.pending = {}
 	self.submissions = {}
 
+	if phase.kind == "claim" then
+		self:assignEveryone()
+	elseif phase.kind == "dub" and phase.roles then
+		self:assignRoleHolders()
+		if next(self.workers) == nil then return end
+	else
+		self:assignByOffset(phase.offset)
+	end
+
 	local endsAt = now() + phase.duration
 	local text = PHASE_TEXT[phase.kind] or { phase.kind, "" }
-
-	for _, player in self.players do
-		local projectIndex = self.assignments[player.UserId]
-		if not projectIndex then continue end
-		self.pending[player.UserId] = true
-		local project = self.projects[projectIndex]
-		Net.remote:FireClient(player, Net.S2C.Phase, {
+	for userId, worker in self.workers do
+		self.pending[userId] = true
+		Net.remote:FireClient(worker.player, Net.S2C.Phase, {
 			kind = phase.kind,
 			modeId = self.mode.id,
 			title = text[1],
 			instructions = text[2],
 			endsAt = endsAt,
-			payload = self:payloadFor(phase, project),
+			payload = self:payloadFor(phase, worker),
 		})
 	end
+	-- Players with nothing to do this phase wait on a short notice.
+	for _, player in self.players do
+		if not self.workers[player.UserId] then
+			Net.remote:FireClient(player, Net.S2C.Phase, {
+				kind = "wait",
+				title = "Hang tight",
+				instructions = "Others are writing their lines. The showcase starts when they're done.",
+				endsAt = endsAt,
+				payload = {},
+			})
+		end
+	end
 
-	-- Collect submissions until everyone is in or the timer (plus grace) runs out.
 	local deadline = endsAt + Config.SUBMIT_GRACE_SECONDS
 	while now() < deadline and next(self.pending) ~= nil do
-		-- Players who leave mid-phase stop blocking.
 		for userId in self.pending do
 			if not Players:GetPlayerByUserId(userId) then
 				self.pending[userId] = nil
@@ -189,28 +262,70 @@ function Round.runPhase(self: Round, phase: Modes.Phase)
 		task.wait(0.25)
 	end
 
-	-- Apply whatever arrived.
-	for userId, projectIndex in self.assignments do
-		local project = self.projects[projectIndex]
+	self:applyPhase(phase)
+	self.phase = nil
+end
+
+function Round.applyPhase(self: Round, phase: Modes.Phase)
+	if phase.kind == "claim" then
+		-- Hand out whatever is still unclaimed.
+		local roleCount: { [number]: number } = {}
+		for _, project in self.projects do
+			for _, r in project.roles do
+				roleCount[r.userId] = (roleCount[r.userId] or 0) + 1
+			end
+		end
+		for _, project in self.projects do
+			Projects.fillRoles(project, self.players, roleCount)
+		end
+		for userId in self.workers do
+			self.scores[userId] = (self.scores[userId] or 0) + Config.POINTS_FOR_SUBMITTING
+		end
+		return
+	end
+
+	for userId, worker in self.workers do
 		local data = self.submissions[userId]
 		local ok = false
-		if phase.kind == "premise" then
-			ok = Projects.applyPremise(project, userId, data)
-		elseif phase.kind == "cast" then
-			ok = Projects.applyCast(project, userId, data, phase.count or 3)
-		elseif phase.kind == "script" then
-			ok = Projects.applyLines(project, userId, data, "script", phase.panels or 3)
-		elseif phase.kind == "draw" then
-			local before = #project.panels
-			ok = Projects.applyPanels(project, userId, data, phase.panels or 1)
-			if #project.panels == before then
-				-- Nothing arrived from this drawer; keep panel numbering consistent.
-				Projects.applyBlankPanels(project, phase.panels or 1)
+		if phase.kind == "dub" and phase.roles then
+			-- data: array of { projectIndex, panel, character, text }
+			if typeof(data) == "table" then
+				local byProject: { [number]: { any } } = {}
+				for _, l in data do
+					if typeof(l) == "table" then
+						local idx = math.floor(tonumber(l.projectIndex) or 0)
+						if self.projects[idx] then
+							byProject[idx] = byProject[idx] or {}
+							table.insert(byProject[idx], l)
+						end
+					end
+				end
+				for idx, lines in byProject do
+					local project = self.projects[idx]
+					local allowed: { [string]: boolean } = {}
+					for _, name in Projects.rolesOf(project, userId) do allowed[name] = true end
+					if Projects.applyLines(project, userId, lines, "dub", #project.panels, allowed) then ok = true end
+				end
 			end
-		elseif phase.kind == "dub" then
-			ok = Projects.applyLines(project, userId, data, "dub", #project.panels)
-		elseif phase.kind == "caption" then
-			ok = Projects.applyCaption(project, userId, data)
+		else
+			local project = self.projects[worker.projectIndex :: number]
+			if phase.kind == "premise" then
+				ok = Projects.applyPremise(project, userId, data)
+			elseif phase.kind == "cast" then
+				ok = Projects.applyCast(project, userId, data, phase.count or 3)
+			elseif phase.kind == "script" then
+				ok = Projects.applyLines(project, userId, data, "script", phase.panels or 3)
+			elseif phase.kind == "draw" then
+				local before = #project.panels
+				ok = Projects.applyPanels(project, userId, data, phase.panels or 1)
+				if #project.panels == before then
+					Projects.applyBlankPanels(project, phase.panels or 1)
+				end
+			elseif phase.kind == "dub" then
+				ok = Projects.applyLines(project, userId, data, "dub", #project.panels)
+			elseif phase.kind == "caption" then
+				ok = Projects.applyCaption(project, userId, data)
+			end
 		end
 		if ok then
 			self.scores[userId] = (self.scores[userId] or 0) + Config.POINTS_FOR_SUBMITTING
@@ -218,25 +333,46 @@ function Round.runPhase(self: Round, phase: Modes.Phase)
 	end
 end
 
--- Called by Main when a client submits. Stored raw; applied at phase end so
--- a player can re-submit (e.g. edit) until the timer runs out.
+----------------------------------------------------------------------------
+-- Client messages
+
+-- Stored raw; applied at phase end so players can re-submit until the timer runs out.
 function Round.onSubmit(self: Round, player: Player, data: any)
-	if self.assignments[player.UserId] == nil then return end
+	if not self.workers[player.UserId] then return end
 	self.submissions[player.UserId] = data
 	self.pending[player.UserId] = nil
 	Net.remote:FireClient(player, Net.S2C.SubmitAck, true)
 end
 
--- Fill holes so the showcase never shows a broken project.
+function Round.onAction(self: Round, player: Player, action: string, data: any)
+	if action == Net.C2S.Claim then
+		local phase = self.phase
+		if not phase or phase.kind ~= "claim" or typeof(data) ~= "table" then return end
+		local project = self.projects[math.floor(tonumber(data.projectIndex) or 0)]
+		if not project or typeof(data.character) ~= "string" then return end
+		-- Don't voice your own story if anyone else is around.
+		if project.ownerId == player.UserId and #self.players > 1 then return end
+		-- Cap how many roles one person holds in a single project.
+		local mine = Projects.rolesOf(project, player.UserId)
+		local holding = table.find(mine, data.character) ~= nil
+		if not holding and #mine >= 2 then return end
+		if Projects.toggleRole(project, player.UserId, player.DisplayName, data.character) then
+			self:broadcast(Net.S2C.ClaimState, { roles = self:rolesSnapshot() })
+		end
+	elseif action == Net.C2S.ShowcaseNext then
+		if self.currentActorId == player.UserId then
+			self.skipRequested = true
+		end
+	end
+end
+
+----------------------------------------------------------------------------
+-- Showcase
+
 function Round.finalize(self: Round)
 	for _, project in self.projects do
 		if not project.premise then
-			project.premise = {
-				title = "Untitled",
-				logline = "",
-				authorId = project.ownerId,
-				authorName = project.ownerName,
-			}
+			project.premise = { title = "Untitled", logline = "", authorId = project.ownerId, authorName = project.ownerName }
 		end
 		if #project.cast == 0 then
 			project.cast = { { name = "Mystery Guest", trait = "no one knows who they are" } }
@@ -247,21 +383,56 @@ function Round.finalize(self: Round)
 	end
 end
 
--- Build the ordered list of showcase frames for one project.
+-- Lines to perform on a panel: dub lines if any, else script lines. Each carries its actor.
+local function linesFor(project: Projects.Project, panelIndex: number)
+	local dub, script = {}, {}
+	for _, l in project.lines do
+		if l.panel == panelIndex then
+			table.insert(if l.source == "dub" then dub else script, l)
+		end
+	end
+	local chosen = if #dub > 0 then dub else script
+	local out = {}
+	for _, l in chosen do
+		local role = project.roles[l.character]
+		local actorId = if role then role.userId elseif l.source == "dub" then l.authorId else nil
+		local actorName = if role then role.name elseif l.source == "dub" then l.authorName else nil
+		table.insert(out, { character = l.character, text = l.text, actorId = actorId, actorName = actorName })
+	end
+	return out
+end
+
 local function framesFor(mode: Modes.Mode, project: Projects.Project)
-	local frames = {}
 	local isBlind = false
 	for _, phase in mode.phases do
 		if phase.kind == "dub" and phase.blind then isBlind = true end
 	end
+	local frames = {}
 	table.insert(frames, { kind = "title", blind = isBlind, seconds = Config.SHOWCASE_TITLE_SECONDS })
 	for i = 1, #project.panels do
-		table.insert(frames, { kind = "panel", panel = i, seconds = Config.SHOWCASE_PANEL_SECONDS })
+		local lines = linesFor(project, i)
+		table.insert(frames, {
+			kind = "panel",
+			panel = i,
+			lines = lines,
+			seconds = if #lines == 0 then Config.SHOWCASE_PANEL_SECONDS else 1.5 + #lines * Config.SHOWCASE_LINE_SECONDS,
+		})
 	end
 	if isBlind then
 		table.insert(frames, { kind = "reveal", seconds = Config.SHOWCASE_REVEAL_SECONDS })
 	end
 	return frames
+end
+
+-- Wait up to `seconds`, returning early if the current actor presses Next.
+function Round.waitOrSkip(self: Round, seconds: number)
+	local deadline = now() + seconds
+	self.skipRequested = false
+	while now() < deadline do
+		if self.skipRequested then break end
+		task.wait(0.1)
+	end
+	self.skipRequested = false
 end
 
 function Round.showcase(self: Round)
@@ -275,37 +446,60 @@ function Round.showcase(self: Round)
 	self:broadcast(Net.S2C.Showcase, {
 		modeId = self.mode.id,
 		liveDub = self.mode.liveDub,
+		lineSeconds = Config.SHOWCASE_LINE_SECONDS,
 		projects = serialized,
 	})
 	task.wait(1.5)
-	for projectIndex, project in self.projects do
+
+	for projectIndex in self.projects do
 		for frameIndex, frame in serialized[projectIndex].frames do
-			self:broadcast(Net.S2C.ShowcaseFocus, {
-				projectIndex = projectIndex,
-				frameIndex = frameIndex,
-				endsAt = now() + frame.seconds,
-			})
-			task.wait(frame.seconds)
+			if frame.kind == "panel" and #frame.lines > 0 then
+				-- Settle on the picture first, then one line at a time.
+				self.currentActorId = nil
+				self:broadcast(Net.S2C.ShowcaseFocus, { projectIndex = projectIndex, frameIndex = frameIndex, lineIndex = 0, endsAt = now() + 1.5 })
+				task.wait(1.5)
+				for lineIndex, line in frame.lines do
+					self.currentActorId = line.actorId
+					self:broadcast(Net.S2C.ShowcaseFocus, {
+						projectIndex = projectIndex,
+						frameIndex = frameIndex,
+						lineIndex = lineIndex,
+						endsAt = now() + Config.SHOWCASE_LINE_SECONDS,
+					})
+					self:waitOrSkip(Config.SHOWCASE_LINE_SECONDS)
+				end
+				self.currentActorId = nil
+			else
+				self:broadcast(Net.S2C.ShowcaseFocus, { projectIndex = projectIndex, frameIndex = frameIndex, lineIndex = 0, endsAt = now() + frame.seconds })
+				task.wait(frame.seconds)
+			end
 		end
 	end
 end
+
+----------------------------------------------------------------------------
+-- Voting and results
 
 function Round.vote(self: Round)
 	self:pruneLeavers()
 	local endsAt = now() + Config.VOTE_SECONDS
 	local summaries = {}
 	for i, project in self.projects do
+		local actors = {}
+		for _, r in project.roles do
+			if not table.find(actors, r.name) then table.insert(actors, r.name) end
+		end
 		summaries[i] = {
 			index = i,
 			title = if project.premise then project.premise.title else "Untitled",
 			ownerName = project.ownerName,
-			dubberName = project.dubberName,
+			actors = actors,
 			thumbnail = project.panels[1] and project.panels[1].strokes or {},
 		}
 	end
 	self:broadcast(Net.S2C.Vote, { awards = AWARDS, projects = summaries, endsAt = endsAt })
 
-	local votes: { [number]: { [string]: number } } = {} -- userId -> awardId -> projectIndex
+	local votes: { [number]: { [string]: number } } = {}
 	local conn = Net.remote.OnServerEvent:Connect(function(player, action, data)
 		if action ~= Net.C2S.Vote or typeof(data) ~= "table" then return end
 		if not table.find(self.players, player) then return end
@@ -331,7 +525,6 @@ function Round.vote(self: Round)
 	end
 	conn:Disconnect()
 
-	-- Tally
 	local tally: { [string]: { [number]: number } } = {}
 	for _, award in AWARDS do tally[award.id] = {} end
 	for _, ballot in votes do
@@ -348,10 +541,10 @@ function Round.vote(self: Round)
 		if bestIdx then
 			local project = self.projects[bestIdx]
 			winners[award.id] = { projectIndex = bestIdx, votes = bestCount, title = project.premise and project.premise.title or "Untitled" }
-			-- Points: owner always; dubber for Best Dub; every contributor for the rest.
 			local recipients: { [number]: boolean } = {}
-			if award.id == "best_dub" and project.dubberId then
-				recipients[project.dubberId] = true
+			if award.id == "best_dub" then
+				for _, r in project.roles do recipients[r.userId] = true end
+				if project.dubberId then recipients[project.dubberId] = true end
 			else
 				for userId in project.submittedBy do recipients[userId] = true end
 				recipients[project.ownerId] = true
@@ -371,12 +564,7 @@ function Round.results(self: Round, winners: any)
 		table.insert(board, { userId = userId, name = if player then player.DisplayName else "Left", score = score })
 	end
 	table.sort(board, function(a, b) return a.score > b.score end)
-	self:broadcast(Net.S2C.Results, {
-		board = board,
-		winners = winners,
-		awards = AWARDS,
-		endsAt = now() + Config.RESULTS_SECONDS,
-	})
+	self:broadcast(Net.S2C.Results, { board = board, winners = winners, awards = AWARDS, endsAt = now() + Config.RESULTS_SECONDS })
 	task.wait(Config.RESULTS_SECONDS)
 end
 

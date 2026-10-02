@@ -139,11 +139,11 @@ function TextPhases.script(container: Frame, data: any, ctx: any)
 	local f: GuiObject
 	if Responsive.isCompact() then
 		f = Layout.form(container)
-		infoCard(f, { premise = data.premise, cast = data.cast })
+		infoCard(f, { premise = data.premise, cast = data.cast, roles = data.roles })
 	else
 		local main, side = Layout.split(container, { mainFraction = 0.6 })
 		f = Layout.form(main)
-		infoCard(side, { premise = data.premise, cast = data.cast })
+		infoCard(side, { premise = data.premise, cast = data.cast, roles = data.roles })
 	end
 	for i = 1, data.panels do
 		editors[i] = TextPhases.lineEditor(f, i, castNames, ctx, 3)

@@ -26,6 +26,7 @@ export type Project = {
 	panels: { Panel },
 	lines: { Line },
 	captions: { [string]: Caption }, -- keyed by tostring(panelIndex): sparse numeric keys don't survive RemoteEvents
+	roles: { [string]: { userId: number, name: string } }, -- character name -> voice actor
 	dubberName: string?,
 	dubberId: number?,
 	submittedBy: { [number]: boolean }, -- userIds that contributed anything (for participation points)
@@ -44,6 +45,7 @@ function Projects.new(index: number, owner: Player): Project
 		panels = {},
 		lines = {},
 		captions = {},
+		roles = {},
 		dubberName = nil,
 		dubberId = nil,
 		submittedBy = {},
@@ -121,7 +123,8 @@ function Projects.applyBlankPanels(project: Project, count: number)
 end
 
 -- data: array of { panel = n, character = "Name", text = "..." }
-function Projects.applyLines(project: Project, userId: number, data: any, source: string, maxPanel: number): boolean
+-- `allowed` restricts which characters this author may write for (role-based dubbing).
+function Projects.applyLines(project: Project, userId: number, data: any, source: string, maxPanel: number, allowed: { [string]: boolean }?): boolean
 	if typeof(data) ~= "table" then return false end
 	local castNames: { [string]: boolean } = {}
 	for _, c in project.cast do
@@ -136,8 +139,10 @@ function Projects.applyLines(project: Project, userId: number, data: any, source
 		local text = Text.clean(l.text, Config.MAX_LINE_LEN)
 		if text == "" then continue end
 		local character = Text.clean(l.character, Config.MAX_CHAR_NAME_LEN)
-		-- Blind dubbers may invent character names; everyone else must use the cast.
-		if not castNames[character] then
+		if allowed then
+			if not allowed[character] then continue end
+		elseif not castNames[character] then
+			-- Blind dubbers may invent character names; everyone else must use the cast.
 			character = Filter.forBroadcast(Text.orDefault(character, "???"), userId)
 		end
 		table.insert(project.lines, {
@@ -175,6 +180,51 @@ function Projects.applyCaption(project: Project, userId: number, data: any): boo
 	return true
 end
 
+-- Toggle a role claim. Returns true if the state changed.
+function Projects.toggleRole(project: Project, userId: number, name: string, character: string): boolean
+	local valid = false
+	for _, c in project.cast do
+		if c.name == character then valid = true end
+	end
+	if not valid then return false end
+	local current = project.roles[character]
+	if current and current.userId == userId then
+		project.roles[character] = nil
+		return true
+	end
+	if current then return false end -- someone else holds it
+	project.roles[character] = { userId = userId, name = name }
+	return true
+end
+
+-- Characters this player voices in this project.
+function Projects.rolesOf(project: Project, userId: number): { string }
+	local out = {}
+	for _, c in project.cast do
+		local r = project.roles[c.name]
+		if r and r.userId == userId then table.insert(out, c.name) end
+	end
+	return out
+end
+
+-- Give every unclaimed character to someone. Prefers people who aren't the owner
+-- and have the fewest roles so far.
+function Projects.fillRoles(project: Project, players: { Player }, roleCount: { [number]: number })
+	for _, c in project.cast do
+		if project.roles[c.name] then continue end
+		local best: Player? = nil
+		local bestScore = math.huge
+		for _, p in players do
+			local score = (roleCount[p.UserId] or 0) + (if p.UserId == project.ownerId and #players > 1 then 100 else 0)
+			if score < bestScore then best, bestScore = p, score end
+		end
+		if best then
+			project.roles[c.name] = { userId = best.UserId, name = best.DisplayName }
+			roleCount[best.UserId] = (roleCount[best.UserId] or 0) + 1
+		end
+	end
+end
+
 -- What the latest caption (or the premise if none) says. Used for telephone draws.
 function Projects.latestPrompt(project: Project): string
 	local caption = project.captions[tostring(#project.panels)]
@@ -199,6 +249,7 @@ function Projects.serialize(project: Project, blind: boolean?)
 		panels = project.panels,
 		lines = project.lines,
 		captions = project.captions,
+		roles = if blind then {} else project.roles,
 		dubberName = project.dubberName,
 	}
 end

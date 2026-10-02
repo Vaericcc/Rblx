@@ -14,7 +14,9 @@
 		cast     invent `count` characters (name + defining trait)
 		script   write dialogue for `panels` panels before anything is drawn
 		draw     draw `panels` panels (appended to whatever the project already has)
-		dub      put words in the characters' mouths for every existing panel
+		claim    everyone picks which character they will voice, before drawing starts
+		dub      write lines for every existing panel. With `roles = true` you write
+		         only for the characters you claimed; otherwise one dubber per project.
 		caption  describe the latest panel in one sentence (telephone-style)
 ]]
 
@@ -25,6 +27,7 @@ export type Phase = {
 	count: number?,
 	panels: number?,
 	blind: boolean?,
+	roles: boolean?,
 }
 
 export type Mode = {
@@ -42,53 +45,57 @@ local Modes: { Mode } = {
 		id = "classic",
 		name = "CLASSIC",
 		tagline = "One panel. One punchline.",
-		description = "Write a premise, create a cast of characters, and draw your story in a single panel. Then a friend dubs it.",
+		description = "Write a premise, create a cast, and draw your story in a single panel. Friends claim the roles and voice them live.",
 		minPlayers = 2,
 		liveDub = true,
 		phases = {
 			{ kind = "premise", offset = 0, duration = 45 },
 			{ kind = "cast", offset = 0, duration = 60, count = 2 },
+			{ kind = "claim", offset = 0, duration = 30 },
 			{ kind = "draw", offset = 0, duration = 90, panels = 1 },
-			{ kind = "dub", offset = 1, duration = 60 },
+			{ kind = "dub", offset = 0, duration = 60, roles = true },
 		},
 	},
 	{
 		id = "comic",
 		name = "COMIC",
 		tagline = "Four panels, one story.",
-		description = "Write a premise, create a cast of characters, and draw your story as a 4-panel comic. A friend dubs every panel.",
+		description = "Write a premise, create a cast, and draw a 4-panel comic. Friends claim the roles and voice every panel.",
 		minPlayers = 2,
 		liveDub = true,
 		phases = {
 			{ kind = "premise", offset = 0, duration = 45 },
 			{ kind = "cast", offset = 0, duration = 60, count = 3 },
+			{ kind = "claim", offset = 0, duration = 30 },
 			{ kind = "draw", offset = 0, duration = 180, panels = 4 },
-			{ kind = "dub", offset = 1, duration = 90 },
+			{ kind = "dub", offset = 0, duration = 90, roles = true },
 		},
 	},
 	{
 		id = "story_swap",
 		name = "STORY SWAP",
 		tagline = "Your idea. Their hands.",
-		description = "Write a premise and a cast, then swap: you draw your friend's story while they draw yours. A third friend dubs the result.",
+		description = "Write a premise and a cast, then swap: you draw your friend's story while they draw yours. Claimed roles voice the result.",
 		minPlayers = 3,
 		liveDub = true,
 		phases = {
 			{ kind = "premise", offset = 0, duration = 45 },
 			{ kind = "cast", offset = 0, duration = 60, count = 3 },
+			{ kind = "claim", offset = 0, duration = 30 },
 			{ kind = "draw", offset = 1, duration = 150, panels = 3 },
-			{ kind = "dub", offset = 2, duration = 75 },
+			{ kind = "dub", offset = 0, duration = 75, roles = true },
 		},
 	},
 	{
 		id = "script_swap",
 		name = "SCRIPT SWAP",
 		tagline = "The words come first.",
-		description = "Create a cast and write a 3-panel script. Swap with a friend and draw to THEIR script, line by line. The writer performs it.",
+		description = "Create a cast and write a 3-panel script. Swap with a friend and draw to THEIR script. Everyone performs the role they claimed.",
 		minPlayers = 2,
 		liveDub = true,
 		phases = {
 			{ kind = "cast", offset = 0, duration = 60, count = 3 },
+			{ kind = "claim", offset = 0, duration = 30 },
 			{ kind = "script", offset = 0, duration = 120, panels = 3 },
 			{ kind = "draw", offset = 1, duration = 150, panels = 3 },
 		},

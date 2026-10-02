@@ -10,10 +10,10 @@ story back while the dubbers perform their lines over voice chat, and hands out 
 
 | Mode | Flow | Who dubs |
 |------|------|----------|
-| **CLASSIC** | Premise → Cast → Draw 1 panel | The next player |
-| **COMIC** | Premise → Cast → Draw 4 panels | The next player |
-| **STORY SWAP** | Premise → Cast → *swap* → Draw 3 panels | A third player |
-| **SCRIPT SWAP** | Cast → Script → *swap* → Draw to their script | The writer performs their own script |
+| **CLASSIC** | Premise → Cast → Claim roles → Draw 1 panel → Write lines | Whoever claimed each character |
+| **COMIC** | Premise → Cast → Claim roles → Draw 4 panels → Write lines | Whoever claimed each character |
+| **STORY SWAP** | Premise → Cast → Claim roles → *swap* → Draw 3 panels → Write lines | Whoever claimed each character |
+| **SCRIPT SWAP** | Cast → Claim roles → Script → *swap* → Draw to their script | Whoever claimed each character performs the writer's lines |
 | **BLIND DUB** *(new)* | Premise → Cast → Draw 3 panels | The next player, who **only sees the pictures**. The real premise is revealed after the dub. |
 | **BROKEN TELEPHONE** *(new)* | Premise → Draw → Describe → Draw → Describe | Nobody; the showcase plays the whole mutation chain |
 
@@ -52,9 +52,20 @@ movement are disabled so nothing gets in the way. See `docs/DESIGN.md` for the f
    and sending them only what they should see. Timers are synchronized with server time.
    Players can submit early and keep editing; the server applies the latest submission when
    the timer ends.
-3. **Showcase.** Every story plays back in sync for everyone: title card, then each panel
-   with speech bubbles appearing one by one. In live-dub modes the dubber is called up
-   on screen so they can voice their lines over Roblox voice chat.
+3. **Showcase.** Every story plays back in sync for everyone, one line at a time. When a
+   line comes up, its voice actor gets an on-air panel with a mic toggle, a level meter and
+   a Next Line button, and everyone else sees who is speaking. Lines auto-advance after a
+   few seconds if the actor doesn't press Next.
+
+## Roles and live dubbing
+
+Right after the cast is written, everyone claims the characters they want to voice (up to
+two per story, never your own story). Unclaimed roles are handed out automatically. During
+the dub phase you write lines only for your characters, and in the showcase you perform them.
+
+Roblox does not allow experiences to record the microphone, so dubbing is always live over
+Roblox voice chat. Enable Voice Chat in Game Settings → Communication. If voice chat isn't
+available for a player, their lines still appear as speech bubbles for everyone to read.
 4. **Vote.** Four awards: Funniest, Best Art, Best Dub, Plot Twist. You can't pick your own story.
 5. **Results.** Award winners and a leaderboard. Points go to everyone who contributed to a
    winning story (Best Dub goes to the dubber alone).

@@ -130,7 +130,7 @@ function Draw.show(container: Frame, data: any, ctx: any)
 	selectPanel(1)
 
 	local info = StoryInfo.build(side, {
-		premise = data.premise, cast = data.cast, prompt = data.prompt, ownerName = data.ownerName, lines = data.lines,
+		premise = data.premise, cast = data.cast, roles = data.roles, prompt = data.prompt, ownerName = data.ownerName, lines = data.lines,
 	})
 	info.Size = UDim2.new(1, 0, 0, 0)
 	info.AutomaticSize = Enum.AutomaticSize.Y

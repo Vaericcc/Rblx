@@ -34,7 +34,8 @@ Net.S2C = {
 	-- match
 	Phase = "Phase",
 	Showcase = "Showcase",
-	ShowcaseFocus = "ShowcaseFocus",
+	ShowcaseFocus = "ShowcaseFocus", -- { projectIndex, frameIndex, lineIndex, endsAt }
+	ClaimState = "ClaimState", -- { roles = { [projectIndex] = { [character] = { userId, name } } } }
 	Vote = "Vote",
 	Results = "Results",
 	MatchEnd = "MatchEnd",
@@ -52,6 +53,8 @@ Net.C2S = {
 	VoteMode = "VoteMode", -- modeId (applies to your current room or pad)
 	Submit = "Submit",
 	Vote = "Vote",
+	Claim = "Claim", -- { projectIndex, character } toggles a role claim during the claim phase
+	ShowcaseNext = "ShowcaseNext", -- the current line's actor is done speaking
 }
 
 return Net

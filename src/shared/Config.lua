@@ -21,7 +21,9 @@ local Config = {
 	SUBMIT_GRACE_SECONDS = 2, -- how long the server waits after a phase timer for late submissions
 
 	SHOWCASE_TITLE_SECONDS = 4,
-	SHOWCASE_PANEL_SECONDS = 7,
+	SHOWCASE_PANEL_SECONDS = 4, -- a panel with no lines
+	SHOWCASE_LINE_SECONDS = 7, -- time each actor gets per line before auto-advance
+	PHASE_BRIEFING_SECONDS = 3,
 	SHOWCASE_REVEAL_SECONDS = 5,
 	VOTE_SECONDS = 30,
 	RESULTS_SECONDS = 15,

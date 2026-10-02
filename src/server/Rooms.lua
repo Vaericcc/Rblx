@@ -442,6 +442,13 @@ function Rooms.onSubmit(player: Player, data: any)
 	end
 end
 
+function Rooms.onRoundAction(player: Player, action: string, data: any)
+	local room = roomOf[player.UserId]
+	if room and room.round then
+		room.round:onAction(player, action, data)
+	end
+end
+
 function Rooms.onPlayerRemoving(player: Player)
 	Rooms.leave(player)
 end

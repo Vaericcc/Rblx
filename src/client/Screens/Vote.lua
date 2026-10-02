@@ -37,7 +37,9 @@ function Vote.show(container: Frame, data: any, ctx: any)
 			c:setStrokes(p.thumbnail)
 			table.insert(canvases, c)
 			Make.label(p.title, 12, { Size = UDim2.new(1, 0, 0, 16), Position = UDim2.new(0, 0, 0, cell - 32), TextTruncate = Enum.TextTruncate.AtEnd, Parent = tile })
-			Make.label("by " .. p.ownerName, 11, { TextColor3 = Theme.textDim, Size = UDim2.new(1, 0, 0, 14), Position = UDim2.new(0, 0, 0, cell - 16), TextTruncate = Enum.TextTruncate.AtEnd, Parent = tile })
+			local credit = "by " .. p.ownerName
+			if p.actors and #p.actors > 0 then credit ..= "  🎤 " .. table.concat(p.actors, ", ") end
+			Make.label(credit, 11, { TextColor3 = Theme.textDim, Size = UDim2.new(1, 0, 0, 14), Position = UDim2.new(0, 0, 0, cell - 16), TextTruncate = Enum.TextTruncate.AtEnd, Parent = tile })
 			local btn = Make.button(if mine then "yours" else "Pick", Theme.panel, function() end, {
 				Size = UDim2.new(1, 0, 0, 30), Position = UDim2.new(0, 0, 1, -30), TextSize = 13, TextColor3 = if mine then Theme.textDim else Theme.text, Parent = tile,
 			})
