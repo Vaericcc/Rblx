@@ -27,6 +27,7 @@ export type Project = {
 	lines: { Line },
 	captions: { [string]: Caption }, -- keyed by tostring(panelIndex): sparse numeric keys don't survive RemoteEvents
 	roles: { [string]: { userId: number, name: string } }, -- character name -> voice actor
+	scenes: { string }, -- co-op: one scene description per panel, written by the director
 	dubberName: string?,
 	dubberId: number?,
 	submittedBy: { [number]: boolean }, -- userIds that contributed anything (for participation points)
@@ -46,6 +47,7 @@ function Projects.new(index: number, owner: Player): Project
 		lines = {},
 		captions = {},
 		roles = {},
+		scenes = {},
 		dubberName = nil,
 		dubberId = nil,
 		submittedBy = {},
@@ -113,6 +115,28 @@ function Projects.applyPanels(project: Project, userId: number, data: any, count
 		project.submittedBy[userId] = true
 	end
 	return any
+end
+
+-- Co-op: put this drawer's panel at a fixed slot.
+function Projects.setPanel(project: Project, index: number, userId: number, strokes: { Strokes.Stroke })
+	while #project.panels < index do
+		table.insert(project.panels, { strokes = {}, authorId = 0, authorName = "nobody" })
+	end
+	project.panels[index] = { strokes = strokes, authorId = userId, authorName = nameOf(userId) }
+	if #strokes > 0 then project.submittedBy[userId] = true end
+end
+
+-- Co-op director writes one scene per panel.
+function Projects.applyScenes(project: Project, userId: number, data: any, count: number): boolean
+	if typeof(data) ~= "table" then return false end
+	local scenes = {}
+	for i = 1, count do
+		local text = Text.clean(data[i], Config.MAX_LOGLINE_LEN)
+		scenes[i] = Filter.forBroadcast(Text.orDefault(text, ("Scene %d"):format(i)), userId)
+	end
+	project.scenes = scenes
+	project.submittedBy[userId] = true
+	return true
 end
 
 -- Called when a drawer never submitted: keep panel numbering consistent.
@@ -250,6 +274,7 @@ function Projects.serialize(project: Project, blind: boolean?)
 		lines = project.lines,
 		captions = project.captions,
 		roles = if blind then {} else project.roles,
+		scenes = project.scenes,
 		dubberName = project.dubberName,
 	}
 end

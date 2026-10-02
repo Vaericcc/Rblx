@@ -5,27 +5,51 @@ the original idea ("draw a storyboard and your friends dub over it").
 
 ## Brief
 
-Build a cross-platform Roblox party game (phone, tablet, PC) called **StoryDub**.
-Players write a premise and cast, draw a storyboard, and friends dub it. Six modes
-are defined as data, so each is an ordered list of phases plus a seat offset that
-decides whose story you work on: Classic, Comic, Story Swap, Script Swap, Blind Dub
-and Broken Telephone.
+Build **StoryDub**, a cross-platform (phone, tablet, PC) voice-chat party game for Roblox.
+Players write a premise and cast, draw a storyboard, claim roles and voice the result live.
+Seven modes are pure data (an ordered list of phases plus a seat offset): Classic, Comic,
+Story Swap, Script Swap, Co-op Comic, Blind Dub and Broken Telephone.
 
-The lobby is a walkable 3D hub with two ways to start a match:
+**Hub and matchmaking.** The hub is a walkable plaza. Matches form from rooms (Public,
+Friends Only, or Pro, which needs 10,000 persistent points) or by standing on a platform.
+When a match starts, the party is **teleported to a reserved server** of the same place
+(like Doors), plays there alone, and is teleported back to a public hub server afterwards.
+Studio cannot teleport, so there the match runs inside the hub server with voice access
+lists for isolation.
 
-1. **Matchmaking UI.** A host creates a room set to *Public* or *Friends Only*.
-   Friends-only rooms are visible and joinable only to the host's Roblox friends
-   (checked server-side with `Player:IsFriendsWith`). Members vote on a mode and the
-   host starts. Host migrates if the host leaves.
-2. **Platforms.** Glowing pads in the hub form a match automatically when enough
-   players stand on them. A billboard over the pad shows the count and a countdown.
-   Standing players vote on a mode from a bottom banner. Stepping off leaves.
+**Drawing.** The canvas has brush, eraser, rectangle, circle, fill, mirror, transform and
+lasso tools. Every stroke streams to the server as it happens so nothing is lost on a
+disconnect; the server only commits a panel when the artist submits or the timer ends.
+Players with nothing to draw watch the artists live.
 
-Many matches run at once, one per room. Every screen works at phone size (stacked
-layout, touch drawing, on-screen controls hidden and the character frozen during a
-match) and at desktop size (side-by-side panels). The server validates and filters
-all player input. Code is modular: modes are data, layout decisions live in one
-place, and the client is a router over server messages.
+**Progression.** Round scores accumulate in a DataStore. Totals show in the hub and gate
+Pro rooms.
+
+**Presentation.** The menu reads like a comic page: cream paper, heavy ink borders, a pop
+colour for emphasis. The hub is a floating stone island at golden hour.
+
+## Private match servers
+
+- `Rooms.startMatch` calls `TeleportService:ReserveServer(game.PlaceId)` and teleports the
+  party with TeleportData `{ modeId, memberIds }`.
+- A server with `PrivateServerId ~= ""` and `PrivateServerOwnerId == 0` is a match server.
+  `Main.server.lua` detects this and hands off to `MatchServer.lua`, which gathers the
+  party (up to `MATCH_SERVER_GATHER_SECONDS`), runs one Round, and teleports everyone back.
+- Falls back to an in-server match if reservation or teleport fails.
+
+## Live drawing
+
+- Client sends `Stroke { panel, op, stroke | strokes }` for add / undo / clear / set.
+- `Round.onStroke` validates and keeps a per-artist buffer; spectators get `LiveStroke`.
+- At phase end the explicit submission wins; otherwise the buffer is used.
+
+## Player caps
+
+| What | Cap | Where |
+|------|-----|-------|
+| Hub server | Roblox default 50 | Game Settings → Places → Max Players (30 to 50 recommended) |
+| Room / party | 10 | `Config.MAX_PLAYERS` |
+| Match server | the party only | reserved per match |
 
 ## Roles and the dubbing moment
 

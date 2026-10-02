@@ -20,11 +20,12 @@ function Claim.show(container: Frame, data: any, ctx: any)
 	local root = Layout.form(container)
 	local roles = data.roles or {}
 	local chipsByKey: { [string]: TextButton } = {}
-	local solo = #data.projects == 1 and data.projects[1].ownerId == me
+	local solo = #data.projects == 1 and (data.projects[1].ownerId == me or data.shared == true)
 
 	Make.label(
-		if solo
-			then "You're testing alone, so you voice your own cast. Tap the characters you want."
+		if data.shared
+			then "It's everyone's comic. Tap up to 2 characters to voice."
+			elseif solo then "You're testing alone, so you voice your own cast. Tap the characters you want."
 			else ("Claim up to %d characters per story. You can't voice your own story."):format(data.maxRoles or 2),
 		14, { TextColor3 = Theme.textDim, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, Parent = root })
 
@@ -49,7 +50,7 @@ function Claim.show(container: Frame, data: any, ctx: any)
 	end
 
 	for _, p in data.projects do
-		local mine = p.ownerId == me
+		local mine = p.ownerId == me and not data.shared
 		local card = Make.card({ Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, Make.list(nil, 8), Parent = root })
 		Make.heading(("%s  <font color=\"#aaaabe\" size=\"13\">by %s%s</font>"):format(p.title, p.ownerName, if mine and not solo then " (yours)" else ""), 18, {
 			RichText = true, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, Parent = card,

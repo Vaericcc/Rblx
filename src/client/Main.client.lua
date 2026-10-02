@@ -279,21 +279,66 @@ local PHASE_SCREENS: { [string]: (Frame, any, any) -> any } = {
 	claim = Claim.show,
 	script = TextPhases.script,
 	caption = TextPhases.caption,
+	scenes = TextPhases.scenes,
 	draw = Draw.show,
 	dub = Dub.show,
 	wait = Wait.show,
 }
 
 ----------------------------------------------------------------------------
+-- Teleport / gathering overlay (private match servers)
+
+local overlay: Frame? = nil
+local function setOverlay(message: string?)
+	if overlay then overlay:Destroy() overlay = nil end
+	if not message then return end
+	overlay = Make("Frame", {
+		BackgroundColor3 = Theme.bg,
+		Size = UDim2.fromScale(1, 1),
+		ZIndex = 200,
+		Active = true,
+		Parent = gui,
+	})
+	local card = Make("Frame", {
+		BackgroundColor3 = Theme.panel,
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.new(0, 460, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		ZIndex = 201,
+		Make.corner(),
+		Make.pad(24),
+		Make.list(nil, 10, Enum.HorizontalAlignment.Center),
+		Make("UISizeConstraint", { MaxSize = Vector2.new(Responsive.viewport().X - 32, math.huge) }),
+		Parent = overlay,
+	})
+	Make.heading("STORY<font color=\"#ffc43d\">DUB</font>", 30, { RichText = true, TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 202, Parent = card })
+	Make.label(message, 16, { TextColor3 = Theme.textDim, TextXAlignment = Enum.TextXAlignment.Center, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, ZIndex = 202, Parent = card })
+end
+
+----------------------------------------------------------------------------
 -- Server messages
 
 local handlers: { [string]: (any) -> () } = {
-	[Net.S2C.LobbyInit] = function(data) lobbyState.init = data lobby:setInit(data) end,
+	[Net.S2C.LobbyInit] = function(data)
+		lobbyState.init = data
+		lobby:setInit(data)
+		if data.isMatchServer then
+			-- We're on a private match server: no hub UI, just wait for the round.
+			setInMatch(true)
+		end
+	end,
+	[Net.S2C.Points] = function(data) lobby:setPoints(data.total or 0) end,
+	[Net.S2C.Teleporting] = function(data) setOverlay(if data then data.message else nil) end,
+	[Net.S2C.LiveStroke] = function(data)
+		if current and current.onLiveStroke then current.onLiveStroke(data) end
+	end,
 	[Net.S2C.RoomList] = function(data) lobbyState.rooms = data.rooms or {} lobby:setRooms(lobbyState.rooms) end,
 	[Net.S2C.RoomState] = function(data) lobbyState.room = data lobby:setRoom(data) end,
 	[Net.S2C.PadState] = function(data) lobbyState.pad = data lobby:setPad(data) end,
 
 	[Net.S2C.Phase] = function(data)
+		setOverlay(nil)
 		local screen = PHASE_SCREENS[data.kind]
 		if not screen then return end
 		mount(screen, data.payload, data.endsAt)

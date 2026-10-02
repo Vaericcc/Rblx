@@ -13,6 +13,7 @@ story back while the dubbers perform their lines over voice chat, and hands out 
 | **CLASSIC** | Premise → Cast → Claim roles → Draw 1 panel → Write lines | Whoever claimed each character |
 | **COMIC** | Premise → Cast → Claim roles → Draw 4 panels → Write lines | Whoever claimed each character |
 | **STORY SWAP** | Premise → Cast → Claim roles → *swap* → Draw 3 panels → Write lines | Whoever claimed each character |
+| **CO-OP COMIC** *(new)* | Premise → Cast → Director writes a scene per panel → Claim roles → Everyone draws one panel → Write lines | Whoever claimed each character |
 | **SCRIPT SWAP** | Cast → Claim roles → Script → *swap* → Draw to their script | Whoever claimed each character performs the writer's lines |
 | **BLIND DUB** *(new)* | Premise → Cast → Draw 3 panels | The next player, who **only sees the pictures**. The real premise is revealed after the dub. |
 | **BROKEN TELEPHONE** *(new)* | Premise → Draw → Describe → Draw → Describe | Nobody; the showcase plays the whole mutation chain |
@@ -60,6 +61,15 @@ movement are disabled so nothing gets in the way. See `docs/DESIGN.md` for the f
    a Next Line button, and everyone else sees who is speaking. Lines auto-advance after a
    few seconds if the actor doesn't press Next.
 
+## Drawing tools
+
+Brush, eraser, rectangle, circle (outlined or filled), fill (tap a shape to fill it, tap
+empty paper to colour the background), mirror (draws a horizontal twin of every stroke),
+transform (tap a stroke, drag to move, resize, flip, copy, delete) and lasso (circle several
+strokes to select them all). Every stroke streams to the server as you draw, so a disconnect
+loses nothing; the panel is committed when you submit or the timer ends. Players with nothing
+to draw watch the artists live.
+
 ## Skipping and removing
 
 - **Skip story.** During the showcase anyone can press Skip this story. Once more than half
@@ -98,7 +108,9 @@ src/shared/
   Text.lua                   Text trimming/length limits
 src/server/
   Main.server.lua            Routes client messages, builds the hub, refreshes room lists
-  Rooms.lua                  Matchmaking: UI rooms (public / friends only) and pad rooms; runs a Round per room
+  Rooms.lua                  Matchmaking: UI rooms (public / friends / pro) and pad rooms; teleports parties to match servers
+  MatchServer.lua            Runs on a reserved server: gathers the party, runs the round, sends everyone home
+  Points.lua                 Persistent points (DataStore); gates Pro rooms
   Hub.lua                    Procedural hub: plaza island, fountain, lamps, trees, lighting
   Pads.lua                   Builds the platforms and scans who is standing on them
   Round.lua                  Phase runner, assignment, showcase, voting, scoring
@@ -158,6 +170,14 @@ installs it directly into the open place, using the same `default.project.json` 
 
 If Studio reports that HTTP requests are not enabled, turn on
 **Game Settings → Security → Allow HTTP Requests** and sync again.
+
+### Studio settings
+
+- **Voice Chat**: Game Settings → Communication, for live dubbing.
+- **API Services**: Game Settings → Security → Enable Studio Access to API Services, so points
+  persist while testing in Studio. Without it the game still runs; points just reset.
+- Teleports do not work in Studio, so matches run inside the hub server there. On a published
+  place each party gets its own server.
 
 ### After either option
 

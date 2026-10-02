@@ -27,6 +27,20 @@ end
 local M = {}
 setmetatable(M, { __call = function(_, ...) return Make(...) end })
 
+-- Merge caller props into defaults. Numeric keys are children: append, don't overwrite.
+local function merge(defaults: { [any]: any }, props: { [any]: any }?): { [any]: any }
+	if props then
+		for k, v in props do
+			if typeof(k) == "number" then
+				table.insert(defaults, v)
+			else
+				defaults[k] = v
+			end
+		end
+	end
+	return defaults
+end
+
 function M.corner(radius: UDim?)
 	return Make("UICorner", { CornerRadius = radius or Theme.radius })
 end
@@ -60,13 +74,12 @@ function M.label(text: string, size: number, props: { [any]: any }?)
 		TextXAlignment = Enum.TextXAlignment.Left,
 		Size = UDim2.new(1, 0, 0, size + 6),
 	}
-	if props then for k, v in props do p[k] = v end end
+	merge(p, props)
 	return Make("TextLabel", p)
 end
 
 function M.heading(text: string, size: number, props: { [any]: any }?)
-	local p = { Font = Theme.font }
-	if props then for k, v in props do p[k] = v end end
+	local p = merge({ Font = Theme.font }, props)
 	return M.label(text, size, p)
 end
 
@@ -81,7 +94,7 @@ function M.button(text: string, color: Color3, onClick: () -> (), props: { [any]
 		Size = UDim2.new(0, 160, 0, Responsive.touchSize()),
 		M.corner(),
 	}
-	if props then for k, v in props do p[k] = v end end
+	merge(p, props)
 	local b = Make("TextButton", p)
 	b.Activated:Connect(onClick)
 	return b
@@ -103,7 +116,7 @@ function M.input(placeholder: string, maxLen: number, props: { [any]: any }?)
 		M.corner(UDim.new(0, 8)),
 		M.pad(10),
 	}
-	if props then for k, v in props do p[k] = v end end
+	merge(p, props)
 	local box = Make("TextBox", p)
 	box:GetPropertyChangedSignal("Text"):Connect(function()
 		if #box.Text > maxLen then
@@ -121,7 +134,7 @@ function M.card(props: { [any]: any }?)
 		M.corner(),
 		M.pad(14),
 	}
-	if props then for k, v in props do p[k] = v end end
+	merge(p, props)
 	return Make("Frame", p)
 end
 
@@ -136,7 +149,7 @@ function M.row(height: number, padding: number?, props: { [any]: any }?)
 		Size = UDim2.new(1, 0, 0, height),
 		M.list(Enum.FillDirection.Horizontal, padding or 8),
 	}
-	if props then for k, v in props do p[k] = v end end
+	merge(p, props)
 	return Make("Frame", p)
 end
 
@@ -148,7 +161,7 @@ function M.pill(text: string, selected: boolean, onClick: () -> (), props: { [an
 		BackgroundColor3 = if selected then Theme.accent else Theme.panelAlt,
 		TextColor3 = if selected then Theme.bg else Theme.text,
 	}
-	if props then for k, v in props do p[k] = v end end
+	merge(p, props)
 	return M.button(text, p.BackgroundColor3, onClick, p)
 end
 

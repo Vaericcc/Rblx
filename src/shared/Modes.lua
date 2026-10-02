@@ -18,6 +18,11 @@
 		dub      write lines for every existing panel. With `roles = true` you write
 		         only for the characters you claimed; otherwise one dubber per project.
 		caption  describe the latest panel in one sentence (telephone-style)
+		scenes   (shared modes) the director writes one scene description per panel
+
+	A mode with `shared = true` has ONE project for the whole room. The first
+	player is the director; each other phase works on that single storyboard
+	and the draw phase gives every player one panel.
 ]]
 
 export type Phase = {
@@ -38,6 +43,7 @@ export type Mode = {
 	minPlayers: number,
 	phases: { Phase },
 	liveDub: boolean, -- during the showcase, call the dubber up to voice their lines over voice chat
+	shared: boolean?, -- one storyboard for the whole room (co-op)
 }
 
 local Modes: { Mode } = {
@@ -98,6 +104,23 @@ local Modes: { Mode } = {
 			{ kind = "claim", offset = 0, duration = 30 },
 			{ kind = "script", offset = 0, duration = 120, panels = 3 },
 			{ kind = "draw", offset = 1, duration = 150, panels = 3 },
+		},
+	},
+	{
+		id = "coop",
+		name = "CO-OP COMIC",
+		tagline = "One story. Everyone draws.",
+		description = "One director writes the premise, the cast and a scene for every panel. Each player draws one scene. Then everyone claims a role and voices it.",
+		minPlayers = 2,
+		liveDub = true,
+		shared = true,
+		phases = {
+			{ kind = "premise", offset = 0, duration = 45 },
+			{ kind = "cast", offset = 0, duration = 60, count = 3 },
+			{ kind = "scenes", offset = 0, duration = 90 },
+			{ kind = "claim", offset = 0, duration = 30 },
+			{ kind = "draw", offset = 0, duration = 150, panels = 1 },
+			{ kind = "dub", offset = 0, duration = 75, roles = true },
 		},
 	},
 	{

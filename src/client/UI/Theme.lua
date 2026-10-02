@@ -10,6 +10,12 @@ return {
 	text = Color3.fromRGB(245, 245, 250),
 	textDim = Color3.fromRGB(170, 170, 190),
 	paper = Color3.fromRGB(252, 250, 240),
+	-- comic-book menu palette
+	ink = Color3.fromRGB(28, 24, 32),
+	cream = Color3.fromRGB(250, 243, 226),
+	creamDark = Color3.fromRGB(236, 226, 202),
+	pop = Color3.fromRGB(255, 86, 120),
+	fontDisplay = Enum.Font.GothamBlack,
 	font = Enum.Font.GothamBold,
 	fontBody = Enum.Font.Gotham,
 	radius = UDim.new(0, 12),

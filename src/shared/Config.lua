@@ -12,6 +12,14 @@ local Config = {
 	-- StoryDub is a voice game: players must have voice chat enabled to play.
 	-- Studio solo testing is exempt because voice doesn't run there.
 	VOICE_REQUIRED = not SOLO_TESTING,
+	-- Matches run in their own reserved server (TeleportService). Studio can't
+	-- teleport, so there matches run inside the hub server instead.
+	PRIVATE_MATCH_SERVERS = not RunService:IsStudio(),
+	MATCH_SERVER_GATHER_SECONDS = 25, -- how long a match server waits for the party to arrive
+
+	-- Persistent points and Pro rooms
+	POINTS_DATASTORE = "StoryDubPoints_v1",
+	PRO_POINTS = 10000, -- points needed to create or join a Pro room
 	MIN_PLAYERS = if SOLO_TESTING then 1 else 2,
 	MAX_PLAYERS = 10, -- per room
 

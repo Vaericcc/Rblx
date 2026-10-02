@@ -6,9 +6,19 @@ local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local Config = require(Shared.Config)
 local Modes = require(Shared.Modes)
 local Net = require(Shared.Net)
+local Hub = require(script.Parent.Hub)
+
+-- A reserved server with no owner is one of our private match servers.
+local isMatchServer = game.PrivateServerId ~= "" and game.PrivateServerOwnerId == 0
+if isMatchServer then
+	Hub.build()
+	require(script.Parent.MatchServer).init()
+	return
+end
+
 local Rooms = require(script.Parent.Rooms)
 local Pads = require(script.Parent.Pads)
-local Hub = require(script.Parent.Hub)
+local Points = require(script.Parent.Points)
 
 local function modeList()
 	local list = {}
@@ -35,7 +45,9 @@ local handlers: { [string]: (Player, any) -> () } = {
 		local init = table.clone(LOBBY_INIT)
 		init.voiceEnabled = Rooms.hasVoice(player)
 		init.voiceMessage = Rooms.VOICE_MESSAGE
+		init.proPoints = Config.PRO_POINTS
 		Net.remote:FireClient(player, Net.S2C.LobbyInit, init)
+		Points.push(player)
 		local room = Rooms.roomOf(player)
 		if room then
 			Net.remote:FireClient(player, Net.S2C.RoomState, Rooms.serialize(room))
@@ -70,6 +82,9 @@ local handlers: { [string]: (Player, any) -> () } = {
 	end,
 	[Net.C2S.SkipStory] = function(player, data)
 		Rooms.onRoundAction(player, Net.C2S.SkipStory, data)
+	end,
+	[Net.C2S.Stroke] = function(player, data)
+		Rooms.onRoundAction(player, Net.C2S.Stroke, data)
 	end,
 	[Net.C2S.KickPlayer] = function(player, data)
 		Rooms.kick(player, data)

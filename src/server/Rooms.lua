@@ -7,6 +7,7 @@
 ]]
 local Players = game:GetService("Players")
 local VoiceChatService = game:GetService("VoiceChatService")
+local TeleportService = game:GetService("TeleportService")
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local Config = require(Shared.Config)
@@ -15,13 +16,14 @@ local Net = require(Shared.Net)
 local Round = require(script.Parent.Round)
 local Studios = require(script.Parent.Studios)
 local VoiceIsolation = require(script.Parent.VoiceIsolation)
+local Points = require(script.Parent.Points)
 
 export type Room = {
 	id: string,
 	kind: string, -- "ui" | "pad"
 	hostId: number,
 	hostName: string,
-	visibility: string, -- "public" | "friends"
+	visibility: string, -- "public" | "friends" | "pro"
 	members: { Player },
 	modeVotes: { [number]: string },
 	state: string, -- "waiting" | "starting" | "playing"
@@ -163,7 +165,9 @@ function Rooms.visibleTo(viewer: Player): { any }
 		if room.kind ~= "ui" then continue end
 		local host = Players:GetPlayerByUserId(room.hostId)
 		if not host then continue end
-		if room.visibility == "public" or isFriend(viewer, host) then
+		if room.visibility == "public"
+			or (room.visibility == "friends" and isFriend(viewer, host))
+			or (room.visibility == "pro" and Points.isPro(viewer)) then
 			table.insert(out, listEntry(room, viewer))
 		end
 	end
@@ -245,7 +249,11 @@ function Rooms.create(host: Player, visibility: string): Room?
 		fire(host, Net.S2C.Toast, "Leave your current room first.")
 		return nil
 	end
-	if visibility ~= "friends" then visibility = "public" end
+	if visibility ~= "friends" and visibility ~= "pro" then visibility = "public" end
+	if visibility == "pro" and not Points.isPro(host) then
+		fire(host, Net.S2C.Toast, ("Pro rooms need %d points. Keep playing!"):format(Config.PRO_POINTS))
+		return nil
+	end
 	local room = newRoom("ui", host, visibility)
 	addMember(room, host)
 	Rooms.pushRoom(room)
@@ -278,6 +286,10 @@ function Rooms.join(player: Player, roomId: any)
 	local host = Players:GetPlayerByUserId(room.hostId)
 	if room.visibility == "friends" and (not host or not isFriend(player, host)) then
 		fire(player, Net.S2C.Toast, "That room is friends only.")
+		return
+	end
+	if room.visibility == "pro" and not Points.isPro(player) then
+		fire(player, Net.S2C.Toast, ("That's a Pro room: %d points needed."):format(Config.PRO_POINTS))
 		return
 	end
 	if room.banned[player.UserId] then
@@ -360,6 +372,15 @@ function Rooms.syncPad(padIndex: number, standing: { Player }): Room?
 	end
 	assert(room)
 	if room.state == "playing" then
+		-- The party was teleported to its own server: once they're gone, free the pad.
+		local present = 0
+		for _, p in room.members do
+			if p.Parent then present += 1 end
+		end
+		if present == 0 and not room.round then
+			rooms[room.id] = nil
+			return nil
+		end
 		return room
 	end
 
@@ -432,6 +453,35 @@ function Rooms.requestStart(player: Player)
 	Rooms.startMatch(room)
 end
 
+-- Send the party to its own reserved server. Returns false if that isn't possible.
+local function teleportToMatchServer(room: Room, mode: Modes.Mode, players: { Player }): boolean
+	if not Config.PRIVATE_MATCH_SERVERS then return false end
+	local ok, code = pcall(function()
+		return TeleportService:ReserveServer(game.PlaceId)
+	end)
+	if not ok then
+		warn("[StoryDub] ReserveServer failed:", code)
+		return false
+	end
+	local memberIds = {}
+	for _, p in players do table.insert(memberIds, p.UserId) end
+	local options = Instance.new("TeleportOptions")
+	options.ReservedServerAccessCode = code
+	options:SetTeleportData({ modeId = mode.id, memberIds = memberIds, roomKind = room.kind })
+	for _, p in players do
+		fire(p, Net.S2C.Teleporting, { message = ("Starting %s. Moving your party to a private server..."):format(mode.name) })
+	end
+	local sent = pcall(function()
+		TeleportService:TeleportAsync(game.PlaceId, players, options)
+	end)
+	if not sent then
+		warn("[StoryDub] TeleportAsync failed; running the match here instead")
+		for _, p in players do fire(p, Net.S2C.Teleporting, nil) end
+		return false
+	end
+	return true
+end
+
 function Rooms.startMatch(room: Room)
 	if room.state == "playing" then return end
 	room.state = "playing"
@@ -440,6 +490,17 @@ function Rooms.startMatch(room: Room)
 	local players = table.clone(room.members)
 	Rooms.pushRoom(room)
 	Rooms.pushListToAll()
+
+	if teleportToMatchServer(room, mode, players) then
+		-- Members leave this server; PlayerRemoving cleans the room up.
+		-- Pad rooms must not grab them again on their way out.
+		task.delay(30, function()
+			if rooms[room.id] and #room.members == 0 then
+				rooms[room.id] = nil
+			end
+		end)
+		return
+	end
 
 	task.spawn(function()
 		-- Private studio: only this group hears each other over proximity voice.

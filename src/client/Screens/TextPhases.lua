@@ -161,6 +161,39 @@ function TextPhases.script(container: Frame, data: any, ctx: any)
 end
 
 ----------------------------------------------------------------------------
+-- Co-op: the director writes one scene per panel (one panel per player).
+function TextPhases.scenes(container: Frame, data: any, ctx: any)
+	local f: GuiObject
+	if Responsive.isCompact() then
+		f = Layout.form(container)
+		infoCard(f, { premise = data.premise, cast = data.cast })
+	else
+		local main, side = Layout.split(container, { mainFraction = 0.6 })
+		f = Layout.form(main)
+		infoCard(side, { premise = data.premise, cast = data.cast })
+	end
+	Make.label(("You're directing. Describe what happens in each of the %d panels. A different player draws each one."):format(data.count), 14, {
+		TextColor3 = Theme.textDim, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, Parent = f,
+	})
+	local boxes = {}
+	for i = 1, data.count do
+		local card = Make.card({ Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, Make.list(nil, 6), Parent = f })
+		Make.heading(("Panel %d"):format(i), 14, { TextColor3 = Theme.accent, Parent = card })
+		local box = Make.input("What happens here? Who's in it?", Config.MAX_LOGLINE_LEN, { Size = UDim2.new(1, 0, 0, 64), MultiLine = true, TextYAlignment = Enum.TextYAlignment.Top, Parent = card })
+		watch(box, ctx)
+		boxes[i] = box
+	end
+	return {
+		collect = function()
+			local out = {}
+			for i, b in boxes do out[i] = b.Text end
+			return out
+		end,
+		destroy = function() container:ClearAllChildren() end,
+	}
+end
+
+----------------------------------------------------------------------------
 function TextPhases.caption(container: Frame, data: any, ctx: any)
 	local main, side = Layout.split(container, { mainFraction = 0.55 })
 	local canvas = Canvas.new(main, false)

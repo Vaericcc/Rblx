@@ -10,11 +10,13 @@ local Config = require(Shared.Config)
 local Modes = require(Shared.Modes)
 local Net = require(Shared.Net)
 local Projects = require(script.Parent.Projects)
+local Points = require(script.Parent.Points)
+local Strokes = require(Shared.Strokes)
 
 local Round = {}
 Round.__index = Round
 
-type Worker = { player: Player, projectIndex: number? } -- projectIndex nil = works across projects (claim / role dub)
+type Worker = { player: Player, projectIndex: number?, panelSlot: number? } -- projectIndex nil = works across projects (claim / role dub); panelSlot = co-op panel
 
 export type Round = typeof(setmetatable({} :: {
 	mode: Modes.Mode,
@@ -33,6 +35,8 @@ export type Round = typeof(setmetatable({} :: {
 	skipStoryVotes: { [number]: boolean },
 	skipStory: boolean,
 	skipped: { [number]: boolean }, -- projectIndex -> was skipped in the showcase
+	live: { [number]: { [number]: { Strokes.Stroke } } }, -- userId -> panelOffset -> strokes drawn so far this phase
+	spectators: { Player },
 }, Round))
 
 local AWARDS = {
@@ -50,6 +54,7 @@ local PHASE_TEXT = {
 	draw = { "Draw!", "Bring the story to life. Fill every panel." },
 	dub = { "Write your lines", "Write what your characters say in each panel. You'll perform them live in the showcase." },
 	caption = { "Describe what you see", "You only get the drawing. In one sentence, what is happening?" },
+	scenes = { "Direct the comic", "You're the director. Describe what happens in each panel. One player will draw each scene." },
 }
 
 local function now(): number
@@ -73,9 +78,17 @@ function Round.new(mode: Modes.Mode, players: { Player }): Round
 	self.skipStoryVotes = {}
 	self.skipStory = false
 	self.skipped = {}
-	for i, player in players do
-		self.projects[i] = Projects.new(i, player)
-		self.scores[player.UserId] = 0
+	self.live = {}
+	self.spectators = {}
+	if mode.shared then
+		-- Co-op: one storyboard, directed by the first player.
+		self.projects[1] = Projects.new(1, players[1])
+		for _, player in players do self.scores[player.UserId] = 0 end
+	else
+		for i, player in players do
+			self.projects[i] = Projects.new(i, player)
+			self.scores[player.UserId] = 0
+		end
 	end
 	return self
 end
@@ -122,6 +135,19 @@ function Round.assignByOffset(self: Round, offset: number)
 			end
 		end
 		self.workers[worker.UserId] = { player = worker, projectIndex = project.index }
+	end
+end
+
+-- Co-op: director alone for writing phases; everyone draws one panel of the shared story.
+function Round.assignShared(self: Round, phase: Modes.Phase)
+	self.workers = {}
+	if phase.kind == "draw" then
+		for seat, player in self.players do
+			self.workers[player.UserId] = { player = player, projectIndex = 1, panelSlot = seat }
+		end
+	else
+		local director = self.players[1]
+		self.workers[director.UserId] = { player = director, projectIndex = 1 }
 	end
 end
 
@@ -172,7 +198,7 @@ function Round.payloadFor(self: Round, phase: Modes.Phase, worker: Worker)
 				cast = p.cast,
 			})
 		end
-		return { projects = list, roles = self:rolesSnapshot(), maxRoles = 2 }
+		return { projects = list, roles = self:rolesSnapshot(), maxRoles = 2, shared = self.mode.shared == true }
 	elseif kind == "dub" and phase.roles then
 		local list = {}
 		for _, p in self.projects do
@@ -187,6 +213,22 @@ function Round.payloadFor(self: Round, phase: Modes.Phase, worker: Worker)
 	end
 
 	assert(project, "per-project phase without a project")
+	if kind == "scenes" then
+		return { projectIndex = project.index, premise = project.premise, cast = project.cast, count = #self.players }
+	elseif kind == "draw" and worker.panelSlot then
+		return {
+			projectIndex = project.index,
+			panels = 1,
+			startIndex = worker.panelSlot,
+			premise = project.premise,
+			cast = project.cast,
+			roles = project.roles,
+			lines = {},
+			scene = project.scenes[worker.panelSlot],
+			ownerName = project.ownerName,
+			totalPanels = #self.players,
+		}
+	end
 	if kind == "premise" then
 		return { projectIndex = project.index }
 	elseif kind == "cast" then
@@ -230,9 +272,13 @@ function Round.runPhase(self: Round, phase: Modes.Phase)
 	elseif phase.kind == "dub" and phase.roles then
 		self:assignRoleHolders()
 		if next(self.workers) == nil then return end
+	elseif self.mode.shared then
+		self:assignShared(phase)
 	else
 		self:assignByOffset(phase.offset)
 	end
+	self.live = {}
+	self.spectators = {}
 
 	local endsAt = now() + phase.duration
 	local text = PHASE_TEXT[phase.kind] or { phase.kind, "" }
@@ -247,15 +293,22 @@ function Round.runPhase(self: Round, phase: Modes.Phase)
 			payload = self:payloadFor(phase, worker),
 		})
 	end
-	-- Players with nothing to do this phase wait on a short notice.
+	-- Players with nothing to do this phase wait, and can watch the artists live.
+	local artists = {}
+	if phase.kind == "draw" then
+		for _, worker in self.workers do
+			table.insert(artists, { userId = worker.player.UserId, name = worker.player.DisplayName, panels = phase.panels or 1 })
+		end
+	end
 	for _, player in self.players do
 		if not self.workers[player.UserId] then
+			table.insert(self.spectators, player)
 			Net.remote:FireClient(player, Net.S2C.Phase, {
 				kind = "wait",
-				title = "Hang tight",
-				instructions = "Others are writing their lines. The showcase starts when they're done.",
+				title = if phase.kind == "draw" then "Watch the artists" else "Hang tight",
+				instructions = if phase.kind == "draw" then "Nothing to draw this round. Watch everyone else work live." else "Others are busy. Your turn comes soon.",
 				endsAt = endsAt,
-				payload = {},
+				payload = { artists = artists, phaseKind = phase.kind },
 			})
 		end
 	end
@@ -323,11 +376,23 @@ function Round.applyPhase(self: Round, phase: Modes.Phase)
 				ok = Projects.applyCast(project, userId, data, phase.count or 3)
 			elseif phase.kind == "script" then
 				ok = Projects.applyLines(project, userId, data, "script", phase.panels or 3)
+			elseif phase.kind == "scenes" then
+				ok = Projects.applyScenes(project, userId, data, #self.players)
 			elseif phase.kind == "draw" then
-				local before = #project.panels
-				ok = Projects.applyPanels(project, userId, data, phase.panels or 1)
-				if #project.panels == before then
-					Projects.applyBlankPanels(project, phase.panels or 1)
+				-- Prefer the explicit submission; fall back to what streamed in live.
+				if typeof(data) ~= "table" then
+					data = self:liveAsSubmission(userId, phase.panels or 1)
+				end
+				if worker.panelSlot then
+					local strokes = Strokes.sanitize(if typeof(data) == "table" then data[1] else nil) or {}
+					Projects.setPanel(project, worker.panelSlot, userId, strokes)
+					ok = #strokes > 0
+				else
+					local before = #project.panels
+					ok = Projects.applyPanels(project, userId, data, phase.panels or 1)
+					if #project.panels == before then
+						Projects.applyBlankPanels(project, phase.panels or 1)
+					end
 				end
 			elseif phase.kind == "dub" then
 				ok = Projects.applyLines(project, userId, data, "dub", #project.panels)
@@ -358,8 +423,8 @@ function Round.onAction(self: Round, player: Player, action: string, data: any)
 		if not phase or phase.kind ~= "claim" or typeof(data) ~= "table" then return end
 		local project = self.projects[math.floor(tonumber(data.projectIndex) or 0)]
 		if not project or typeof(data.character) ~= "string" then return end
-		-- Don't voice your own story if anyone else is around.
-		if project.ownerId == player.UserId and #self.players > 1 then return end
+		-- Don't voice your own story if anyone else is around (co-op is everyone's story).
+		if project.ownerId == player.UserId and #self.players > 1 and not self.mode.shared then return end
 		-- Cap how many roles one person holds in a single project.
 		local mine = Projects.rolesOf(project, player.UserId)
 		local holding = table.find(mine, data.character) ~= nil
@@ -367,6 +432,8 @@ function Round.onAction(self: Round, player: Player, action: string, data: any)
 		if Projects.toggleRole(project, player.UserId, player.DisplayName, data.character) then
 			self:broadcast(Net.S2C.ClaimState, { roles = self:rolesSnapshot() })
 		end
+	elseif action == Net.C2S.Stroke then
+		self:onStroke(player, data)
 	elseif action == Net.C2S.ShowcaseNext then
 		if self.currentActorId == player.UserId then
 			self.skipRequested = true
@@ -376,6 +443,54 @@ function Round.onAction(self: Round, player: Player, action: string, data: any)
 		self.skipStoryVotes[player.UserId] = true
 		self:checkSkipStory()
 	end
+end
+
+----------------------------------------------------------------------------
+-- Live drawing: every stroke is mirrored to the server as it happens so a
+-- disconnect loses nothing, and spectators can watch.
+
+function Round.onStroke(self: Round, player: Player, data: any)
+	local phase = self.phase
+	local worker = self.workers[player.UserId]
+	if not phase or phase.kind ~= "draw" or not worker or typeof(data) ~= "table" then return end
+	local panel = math.floor(tonumber(data.panel) or 0)
+	if panel < 1 or panel > (phase.panels or 1) then return end
+	local buffers = self.live[player.UserId] or {}
+	self.live[player.UserId] = buffers
+	local list = buffers[panel] or {}
+	buffers[panel] = list
+
+	local op = data.op
+	local out: any = { artistId = player.UserId, artistName = player.DisplayName, panel = panel, op = op }
+	if op == "add" then
+		local stroke = Strokes.sanitizeOne(data.stroke)
+		if not stroke or #list >= Config.MAX_STROKES_PER_PANEL then return end
+		table.insert(list, stroke)
+		out.stroke = stroke
+	elseif op == "undo" then
+		table.remove(list)
+	elseif op == "clear" then
+		buffers[panel] = {}
+	elseif op == "set" then
+		-- Transform tools rewrite the whole panel.
+		buffers[panel] = Strokes.sanitize(data.strokes) or {}
+		out.strokes = buffers[panel]
+	else
+		return
+	end
+	for _, spectator in self.spectators do
+		if spectator.Parent then
+			Net.remote:FireClient(spectator, Net.S2C.LiveStroke, out)
+		end
+	end
+end
+
+function Round.liveAsSubmission(self: Round, userId: number, panels: number): any
+	local buffers = self.live[userId]
+	if not buffers then return nil end
+	local out = {}
+	for i = 1, panels do out[i] = buffers[i] or {} end
+	return out
 end
 
 function Round.skipNeeded(self: Round): number
@@ -634,6 +749,7 @@ function Round.results(self: Round, winners: any)
 		table.insert(board, { userId = userId, name = if player then player.DisplayName else "Left", score = score })
 	end
 	table.sort(board, function(a, b) return a.score > b.score end)
+	Points.awardRound(self.scores)
 	self:broadcast(Net.S2C.Results, { board = board, winners = winners, awards = AWARDS, endsAt = now() + Config.RESULTS_SECONDS })
 	task.wait(Config.RESULTS_SECONDS)
 end
