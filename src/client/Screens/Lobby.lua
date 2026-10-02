@@ -88,8 +88,9 @@ function Lobby.new(parent: Instance): Lobby
 	})
 	local header = Make.row(Responsive.touchSize(), 8, { Parent = self.panel })
 	self.tabs = header
-	Make.button("✕", Theme.panelAlt, function() self:setOpen(false) end, {
-		Size = UDim2.fromOffset(Responsive.touchSize(), Responsive.touchSize()),
+	Make.button("Close", Theme.panelAlt, function() self:setOpen(false) end, {
+		Size = UDim2.fromOffset(84, Responsive.touchSize()),
+		TextSize = 14,
 		TextColor3 = Theme.text,
 		AnchorPoint = Vector2.new(1, 0),
 		Position = UDim2.new(1, 0, 0, 0),
@@ -103,6 +104,7 @@ function Lobby.new(parent: Instance): Lobby
 		CanvasSize = UDim2.new(),
 		ScrollBarThickness = 6,
 		Make.list(nil, 10),
+		Make("UIPadding", { PaddingRight = UDim.new(0, 12) }),
 		Parent = self.panel,
 	})
 

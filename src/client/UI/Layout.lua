@@ -27,6 +27,7 @@ local function scroller(parent: Instance, size: UDim2, position: UDim2?): Scroll
 		ScrollBarThickness = 6,
 		ScrollBarImageTransparency = 0.4,
 		Make.list(nil, 10),
+		Make("UIPadding", { PaddingRight = UDim.new(0, 12) }),
 		Parent = parent,
 	})
 end

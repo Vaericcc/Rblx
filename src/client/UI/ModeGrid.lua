@@ -27,8 +27,8 @@ function ModeGrid.build(parent: Instance, opts: Opts): Frame
 		Make.list(nil, 8).Parent = grid
 	else
 		Make("UIGridLayout", {
-			CellSize = UDim2.new(0.5, -6, 0, 132),
-			CellPadding = UDim2.new(0, 12, 0, 12),
+			CellSize = UDim2.new(0.5, -8, 0, 140),
+			CellPadding = UDim2.new(0, 16, 0, 12),
 			SortOrder = Enum.SortOrder.LayoutOrder,
 			Parent = grid,
 		})
@@ -41,7 +41,7 @@ function ModeGrid.build(parent: Instance, opts: Opts): Frame
 		local likely = opts.likelyModeId == mode.id
 		local card = Make.card({
 			LayoutOrder = i,
-			Size = UDim2.new(1, 0, 0, if compact then 0 else 132),
+			Size = UDim2.new(1, 0, 0, if compact then 0 else 140),
 			AutomaticSize = if compact then Enum.AutomaticSize.Y else Enum.AutomaticSize.None,
 			BackgroundColor3 = if selected then Theme.panelAlt else Theme.panel,
 			BackgroundTransparency = if locked then 0.4 else 0,

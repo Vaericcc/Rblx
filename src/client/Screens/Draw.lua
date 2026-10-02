@@ -74,8 +74,8 @@ local function buildTools(parent: Instance, canvas: any, horizontal: boolean): F
 	end
 	sizeButtons[2].BackgroundColor3 = Theme.accent2
 	Make.spacer(6, 90).Parent = tools
-	Make.button("↶", Theme.panelAlt, function() canvas:undo() end, { Size = UDim2.fromOffset(size, size), LayoutOrder = 91, TextColor3 = Theme.text, Parent = tools })
-	Make.button("✕", Theme.danger, function() canvas:clear() end, { Size = UDim2.fromOffset(size, size), LayoutOrder = 92, Parent = tools })
+	Make.button("Undo", Theme.panelAlt, function() canvas:undo() end, { Size = UDim2.fromOffset(size, size), LayoutOrder = 91, TextSize = 11, TextColor3 = Theme.text, Parent = tools })
+	Make.button("Clear", Theme.danger, function() canvas:clear() end, { Size = UDim2.fromOffset(size, size), LayoutOrder = 92, TextSize = 11, Parent = tools })
 	return tools
 end
 

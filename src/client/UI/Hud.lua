@@ -125,7 +125,7 @@ end
 
 function Hud.markSubmitted(self: Hud)
 	self.submitted = true
-	self.submit.Text = "Submitted ✓"
+	self.submit.Text = "Submitted"
 	self.submit.BackgroundColor3 = Theme.panelAlt
 end
 
