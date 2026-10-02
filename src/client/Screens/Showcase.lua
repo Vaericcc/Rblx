@@ -61,7 +61,24 @@ function Showcase.show(container: Frame, data: any, ctx: any)
 
 	local castBox = Make("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, Make.list(nil, 4), Parent = side })
 
+	-- Skip story (majority vote)
+	local skipVoted = false
+	local skipButton = Make.button("Skip this story", Theme.panelAlt, function() end, {
+		Size = UDim2.new(1, 0, 0, 40), TextSize = 14, TextColor3 = Theme.textDim, Parent = side,
+	})
+	skipButton.Activated:Connect(function()
+		if skipVoted then return end
+		skipVoted = true
+		skipButton.Text = "Skip vote cast"
+		Net.remote:FireServer(Net.C2S.SkipStory)
+	end)
+	local function paintSkip(votes: number, needed: number)
+		skipButton.Text = if skipVoted then ("Skip vote cast  ·  %d/%d"):format(votes, needed) else ("Skip this story  ·  %d/%d"):format(votes, needed)
+		skipButton.BackgroundColor3 = if votes > 0 then Theme.panel else Theme.panelAlt
+	end
+
 	local projects = data.projects
+	local lastProject: number? = nil
 	local lineEndsAt: number? = nil
 	local lineStarted = 0
 
@@ -133,6 +150,11 @@ function Showcase.show(container: Frame, data: any, ctx: any)
 		sideTitle.Text = project.premise and project.premise.title or "Untitled"
 		sideMeta.Text = ("by %s"):format(project.ownerName)
 		clearChildren(bubbleLayer)
+		if projectIndex ~= lastProject then
+			lastProject = projectIndex
+			skipVoted = false
+			paintSkip(0, 0)
+		end
 
 		if frame.kind == "title" then
 			titleCard.Visible = true
@@ -192,6 +214,9 @@ function Showcase.show(container: Frame, data: any, ctx: any)
 
 	return {
 		collect = nil,
+		onSkipState = function(state: any)
+			if state.projectIndex == lastProject then paintSkip(state.votes or 0, state.needed or 0) end
+		end,
 		focus = function(projectIndex: number, frameIndex: number, lineIndex: number?, endsAt: number?)
 			focus(projectIndex, frameIndex, lineIndex or 0)
 			lineEndsAt = if (lineIndex or 0) > 0 then endsAt else nil

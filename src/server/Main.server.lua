@@ -67,6 +67,12 @@ local handlers: { [string]: (Player, any) -> () } = {
 	[Net.C2S.ShowcaseNext] = function(player, data)
 		Rooms.onRoundAction(player, Net.C2S.ShowcaseNext, data)
 	end,
+	[Net.C2S.SkipStory] = function(player, data)
+		Rooms.onRoundAction(player, Net.C2S.SkipStory, data)
+	end,
+	[Net.C2S.KickPlayer] = function(player, data)
+		Rooms.kick(player, data)
+	end,
 	-- Net.C2S.Vote is consumed by the Round during its vote window.
 }
 

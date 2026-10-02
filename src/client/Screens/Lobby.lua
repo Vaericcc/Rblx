@@ -334,14 +334,18 @@ function Lobby.renderRoom(self: Lobby, room: any)
 			TextColor3 = Theme.textDim, Parent = head,
 		})
 	end
-	-- Members
-	local names = {}
+	-- Members (host sees a Remove button beside everyone else)
+	Make.label(("<b>%d/%d players</b>"):format(#room.members, room.maxPlayers), 14, { RichText = true, Parent = head })
 	for _, m in room.members do
-		table.insert(names, if m.userId == room.hostId and not isPad then m.name .. " 👑" else m.name)
+		local row = Make("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 30), Parent = head })
+		local tag = if m.userId == room.hostId and not isPad then "  👑 host" elseif m.userId == me then "  (you)" else ""
+		Make.label(m.name .. tag, 14, { Size = UDim2.new(1, -100, 1, 0), TextYAlignment = Enum.TextYAlignment.Center, Parent = row })
+		if isHost and not isPad and m.userId ~= me then
+			Make.button("Remove", Theme.panelAlt, function()
+				send(Net.C2S.KickPlayer, m.userId)
+			end, { Size = UDim2.fromOffset(90, 28), TextSize = 12, TextColor3 = Theme.danger, AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, 0, 0.5, 0), Parent = row })
+		end
 	end
-	Make.label(("<b>%d/%d</b>  %s"):format(#room.members, room.maxPlayers, table.concat(names, "  ·  ")), 14, {
-		RichText = true, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, Parent = head,
-	})
 
 	-- Actions
 	local actions = Make.row(Responsive.touchSize(), 8, { Parent = body })

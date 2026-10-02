@@ -27,6 +27,7 @@ export type Room = {
 	startsAt: number?,
 	round: Round.Round?,
 	padIndex: number?,
+	banned: { [number]: boolean },
 }
 
 local Rooms = {}
@@ -205,6 +206,7 @@ local function newRoom(kind: string, host: Player, visibility: string): Room
 		startsAt = nil,
 		round = nil,
 		padIndex = nil,
+		banned = {},
 	}
 	rooms[room.id] = room
 	return room
@@ -277,6 +279,10 @@ function Rooms.join(player: Player, roomId: any)
 		fire(player, Net.S2C.Toast, "That room is friends only.")
 		return
 	end
+	if room.banned[player.UserId] then
+		fire(player, Net.S2C.Toast, "The host removed you from that room.")
+		return
+	end
 	addMember(room, player)
 	Rooms.pushRoom(room)
 	Rooms.pushListToAll()
@@ -286,9 +292,10 @@ function Rooms.leave(player: Player)
 	local room = roomOf[player.UserId]
 	if not room then return end
 	if room.state == "playing" then
-		-- The Round notices missing players itself; just drop membership.
 		removeMember(room, player)
+		if room.round then room.round:removePlayer(player) end
 		fire(player, Net.S2C.RoomState, nil)
+		Rooms.pushMembers(room)
 		return
 	end
 	removeMember(room, player)
@@ -437,6 +444,7 @@ function Rooms.startMatch(room: Room)
 
 		local round = Round.new(mode, players)
 		room.round = round
+		Rooms.pushMembers(room)
 		local ok, err = pcall(function()
 			round:broadcast(Net.S2C.Toast, ("%s - %s"):format(mode.name, mode.tagline))
 			task.wait(Config.INTERMISSION_SECONDS)
@@ -488,6 +496,40 @@ function Rooms.onSubmit(player: Player, data: any)
 	if room and room.round then
 		room.round:onSubmit(player, data)
 	end
+end
+
+-- Members list for the in-match players menu.
+function Rooms.pushMembers(room: Room)
+	local members = {}
+	for _, p in room.members do
+		table.insert(members, { userId = p.UserId, name = p.DisplayName })
+	end
+	for _, p in room.members do
+		fire(p, Net.S2C.RoomMembers, { hostId = if room.kind == "ui" then room.hostId else nil, members = members })
+	end
+end
+
+function Rooms.kick(host: Player, targetId: any)
+	local room = roomOf[host.UserId]
+	if not room or room.kind ~= "ui" or room.hostId ~= host.UserId then return end
+	local id = tonumber(targetId)
+	if not id or id == host.UserId then return end
+	local target = Players:GetPlayerByUserId(id)
+	if not target or roomOf[id] ~= room then return end
+
+	room.banned[id] = true
+	removeMember(room, target)
+	if room.round then
+		room.round:removePlayer(target)
+		Studios.leave({ target })
+		fire(target, Net.S2C.MatchEnd, nil)
+	end
+	fire(target, Net.S2C.RoomState, nil)
+	fire(target, Net.S2C.Toast, "The host removed you from the room.")
+	Rooms.pushListTo(target)
+	Rooms.pushRoom(room)
+	Rooms.pushMembers(room)
+	Rooms.pushListToAll()
 end
 
 function Rooms.onRoundAction(player: Player, action: string, data: any)

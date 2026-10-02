@@ -29,6 +29,9 @@ export type Round = typeof(setmetatable({} :: {
 	-- showcase
 	currentActorId: number?,
 	skipRequested: boolean,
+	showingProject: number?,
+	skipStoryVotes: { [number]: boolean },
+	skipStory: boolean,
 }, Round))
 
 local AWARDS = {
@@ -65,6 +68,9 @@ function Round.new(mode: Modes.Mode, players: { Player }): Round
 	self.connections = {}
 	self.currentActorId = nil
 	self.skipRequested = false
+	self.showingProject = nil
+	self.skipStoryVotes = {}
+	self.skipStory = false
 	for i, player in players do
 		self.projects[i] = Projects.new(i, player)
 		self.scores[player.UserId] = 0
@@ -363,7 +369,41 @@ function Round.onAction(self: Round, player: Player, action: string, data: any)
 		if self.currentActorId == player.UserId then
 			self.skipRequested = true
 		end
+	elseif action == Net.C2S.SkipStory then
+		if not self.showingProject then return end
+		self.skipStoryVotes[player.UserId] = true
+		self:checkSkipStory()
 	end
+end
+
+function Round.skipNeeded(self: Round): number
+	return math.max(1, math.floor(#self.players / 2) + 1)
+end
+
+function Round.checkSkipStory(self: Round)
+	local votes = 0
+	for userId in self.skipStoryVotes do
+		if Players:GetPlayerByUserId(userId) then votes += 1 end
+	end
+	local needed = self:skipNeeded()
+	self:broadcast(Net.S2C.SkipState, { projectIndex = self.showingProject, votes = votes, needed = needed })
+	if votes >= needed then
+		self.skipStory = true
+		self.skipRequested = true
+	end
+end
+
+-- Host kicked someone (or they left): stop waiting on them.
+function Round.removePlayer(self: Round, player: Player)
+	local i = table.find(self.players, player)
+	if i then table.remove(self.players, i) end
+	self.workers[player.UserId] = nil
+	self.pending[player.UserId] = nil
+	self.skipStoryVotes[player.UserId] = nil
+	if self.currentActorId == player.UserId then
+		self.skipRequested = true
+	end
+	if self.showingProject then self:checkSkipStory() end
 end
 
 ----------------------------------------------------------------------------
@@ -452,13 +492,19 @@ function Round.showcase(self: Round)
 	task.wait(1.5)
 
 	for projectIndex in self.projects do
+		self.showingProject = projectIndex
+		self.skipStoryVotes = {}
+		self.skipStory = false
+		self:broadcast(Net.S2C.SkipState, { projectIndex = projectIndex, votes = 0, needed = self:skipNeeded() })
 		for frameIndex, frame in serialized[projectIndex].frames do
+			if self.skipStory then break end
 			if frame.kind == "panel" and #frame.lines > 0 then
 				-- Settle on the picture first, then one line at a time.
 				self.currentActorId = nil
 				self:broadcast(Net.S2C.ShowcaseFocus, { projectIndex = projectIndex, frameIndex = frameIndex, lineIndex = 0, endsAt = now() + 1.5 })
 				task.wait(1.5)
 				for lineIndex, line in frame.lines do
+					if self.skipStory then break end
 					self.currentActorId = line.actorId
 					self:broadcast(Net.S2C.ShowcaseFocus, {
 						projectIndex = projectIndex,
@@ -470,11 +516,17 @@ function Round.showcase(self: Round)
 				end
 				self.currentActorId = nil
 			else
+				self.currentActorId = nil
 				self:broadcast(Net.S2C.ShowcaseFocus, { projectIndex = projectIndex, frameIndex = frameIndex, lineIndex = 0, endsAt = now() + frame.seconds })
-				task.wait(frame.seconds)
+				self:waitOrSkip(frame.seconds)
 			end
 		end
+		if self.skipStory then
+			self:broadcast(Net.S2C.Toast, "Story skipped.")
+			task.wait(0.8)
+		end
 	end
+	self.showingProject = nil
 end
 
 ----------------------------------------------------------------------------

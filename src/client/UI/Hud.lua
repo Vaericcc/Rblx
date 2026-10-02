@@ -19,6 +19,7 @@ export type Hud = typeof(setmetatable({} :: {
 	instructions: TextLabel,
 	timer: TextLabel,
 	submit: TextButton,
+	players: TextButton,
 	endsAt: number?,
 	onSubmit: (() -> ())?,
 	submitted: boolean,
@@ -52,6 +53,9 @@ function Hud.new(parent: Instance): Hud
 	self.submit = Make.button("Submit", Theme.good, function()
 		if self.onSubmit and not self.submitted then self.onSubmit() end
 	end, { Visible = false })
+	self.players = Make.button("👥", Theme.panelAlt, function() end, {
+		Size = UDim2.fromOffset(44, 42), TextSize = 18, TextColor3 = Theme.text,
+	})
 
 	self.top = Make("Frame", {
 		BackgroundColor3 = Theme.panel,
@@ -78,15 +82,20 @@ function Hud.new(parent: Instance): Hud
 			Size = UDim2.new(1, 0, 0, Hud.BOTTOM_HEIGHT_COMPACT),
 			Parent = parent,
 		})
-		self.submit.Size = UDim2.new(1, 0, 0, 52)
-		self.submit.Position = UDim2.new(0, 0, 0, 6)
+		self.submit.Size = UDim2.new(1, -60, 0, 52)
+		self.submit.Position = UDim2.new(0, 60, 0, 6)
 		self.submit.TextSize = 20
 		self.submit.Parent = self.bottom
+		self.players.Size = UDim2.fromOffset(52, 52)
+		self.players.Position = UDim2.new(0, 0, 0, 6)
+		self.players.Parent = self.bottom
 	else
 		self.bottom = nil
 		self.submit.Size = UDim2.new(0, 150, 0, 42)
 		self.submit.Position = UDim2.new(1, -250, 0.5, -21)
 		self.submit.Parent = self.top
+		self.players.Position = UDim2.new(1, -304, 0.5, -21)
+		self.players.Parent = self.top
 	end
 
 	self.conn = RunService.Heartbeat:Connect(function()

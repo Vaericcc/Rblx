@@ -35,7 +35,9 @@ Net.S2C = {
 	Phase = "Phase",
 	Showcase = "Showcase",
 	ShowcaseFocus = "ShowcaseFocus", -- { projectIndex, frameIndex, lineIndex, endsAt }
-	ClaimState = "ClaimState", -- { roles = { [projectIndex] = { [character] = { userId, name } } } }
+	ClaimState = "ClaimState",
+	SkipState = "SkipState", -- { projectIndex, votes, needed }
+	RoomMembers = "RoomMembers", -- { hostId, members = { { userId, name } } } for the in-match players menu -- { roles = { [projectIndex] = { [character] = { userId, name } } } }
 	Vote = "Vote",
 	Results = "Results",
 	MatchEnd = "MatchEnd",
@@ -55,6 +57,8 @@ Net.C2S = {
 	Vote = "Vote",
 	Claim = "Claim", -- { projectIndex, character } toggles a role claim during the claim phase
 	ShowcaseNext = "ShowcaseNext", -- the current line's actor is done speaking
+	SkipStory = "SkipStory", -- vote to skip the story currently showing
+	KickPlayer = "KickPlayer", -- host only: userId to remove from the room
 }
 
 return Net

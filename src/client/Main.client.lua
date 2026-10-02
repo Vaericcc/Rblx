@@ -100,10 +100,51 @@ end
 
 local hud: Hud.Hud
 local lobby: Lobby.Lobby
+local togglePlayersMenu
 local content: Frame
 local chromeCompact: boolean? = nil
-local lobbyState = { init = nil :: any, rooms = {} :: { any }, room = nil :: any, pad = nil :: any }
+local lobbyState = { init = nil :: any, rooms = {} :: { any }, room = nil :: any, pad = nil :: any, members = nil :: any }
 local inMatch = false
+
+-- In-match players menu: who's here, and Remove buttons for the host.
+local playersMenu: Frame? = nil
+function togglePlayersMenu()
+	if playersMenu then
+		playersMenu:Destroy()
+		playersMenu = nil
+		return
+	end
+	local info = lobbyState.members
+	if not info then return end
+	local isHost = info.hostId == player.UserId
+	local menu = Make.card({
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.new(0, 360, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		ZIndex = 60,
+		Make.list(nil, 6),
+		Make("UIStroke", { Color = Theme.panelAlt, Thickness = 1 }),
+		Parent = matchRoot,
+	})
+	playersMenu = menu
+	Make.heading("Players", 18, { ZIndex = 61, Parent = menu })
+	for _, m in info.members do
+		local row = Make("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 32), ZIndex = 61, Parent = menu })
+		local tag = if m.userId == info.hostId then "  👑" elseif m.userId == player.UserId then "  (you)" else ""
+		Make.label(m.name .. tag, 15, { Size = UDim2.new(1, -100, 1, 0), TextYAlignment = Enum.TextYAlignment.Center, ZIndex = 62, Parent = row })
+		if isHost and m.userId ~= player.UserId then
+			Make.button("Remove", Theme.panelAlt, function()
+				Net.remote:FireServer(Net.C2S.KickPlayer, m.userId)
+				togglePlayersMenu()
+			end, { Size = UDim2.fromOffset(90, 28), TextSize = 12, TextColor3 = Theme.danger, AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, 0, 0.5, 0), ZIndex = 62, Parent = row })
+		end
+	end
+	if not isHost then
+		Make.label("Only the host can remove players.", 12, { TextColor3 = Theme.textDim, ZIndex = 61, Parent = menu })
+	end
+	Make.button("Close", Theme.panelAlt, function() togglePlayersMenu() end, { Size = UDim2.new(1, 0, 0, 36), TextSize = 14, TextColor3 = Theme.text, ZIndex = 61, Parent = menu })
+end
 
 local function buildChrome()
 	local compact = Responsive.isCompact()
@@ -120,6 +161,7 @@ local function buildChrome()
 	padding.PaddingRight = UDim.new(0, p)
 
 	hud = Hud.new(column)
+	hud.players.Activated:Connect(function() togglePlayersMenu() end)
 	local topInset, bottomInset = hud:contentInsets()
 	content = Make("Frame", {
 		BackgroundTransparency = 1,
@@ -260,6 +302,10 @@ local handlers: { [string]: (any) -> () } = {
 			briefing(data.title, data.instructions)
 		end
 	end,
+	[Net.S2C.RoomMembers] = function(data) lobbyState.members = data end,
+	[Net.S2C.SkipState] = function(data)
+		if current and current.onSkipState then current.onSkipState(data) end
+	end,
 	[Net.S2C.ClaimState] = function(data)
 		if current and current.onClaimState then current.onClaimState(data) end
 	end,
@@ -270,6 +316,7 @@ local handlers: { [string]: (any) -> () } = {
 	[Net.S2C.Vote] = function(data) mount(Vote.show, data, data.endsAt) end,
 	[Net.S2C.Results] = function(data) mount(Results.show, data, nil) end,
 	[Net.S2C.MatchEnd] = function()
+		if playersMenu then playersMenu:Destroy() playersMenu = nil end
 		unmount()
 		setInMatch(false)
 	end,

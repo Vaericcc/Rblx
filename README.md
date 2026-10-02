@@ -60,6 +60,14 @@ movement are disabled so nothing gets in the way. See `docs/DESIGN.md` for the f
    a Next Line button, and everyone else sees who is speaking. Lines auto-advance after a
    few seconds if the actor doesn't press Next.
 
+## Skipping and removing
+
+- **Skip story.** During the showcase anyone can press Skip this story. Once more than half
+  the group has voted, the showcase jumps to the next story.
+- **Remove player.** The host of a room can remove a player from the room view in the lobby,
+  or from the players menu (👥) during a match. Removed players are sent back to the hub and
+  can't rejoin that room. Platform matches have no host, so there is no kick there.
+
 ## Roles and live dubbing
 
 Right after the cast is written, everyone claims the characters they want to voice (up to
