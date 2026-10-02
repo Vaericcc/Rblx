@@ -40,6 +40,10 @@
         }
       }
     },
+    "VoiceChatService": {
+      "$className": "VoiceChatService",
+      "$properties": { "UseAudioApi": "Enabled" }
+    },
     "StarterGui": {
       "$className": "StarterGui",
       "$properties": { "ResetPlayerGuiOnSpawn": false }

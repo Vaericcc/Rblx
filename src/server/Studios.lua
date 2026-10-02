@@ -10,14 +10,17 @@ local Studios = {}
 
 local STUDIO_SIZE = Vector3.new(40, 1, 40)
 local STUDIO_HEIGHT = 500 -- well above the hub
-local STUDIO_SPACING = 400 -- far enough apart that voice never carries
+local STUDIO_SPACING = 300 -- visual separation only; audio isolation is enforced by VoiceIsolation
+local GRID_COLUMNS = 8 -- studios are laid out in a grid so coordinates stay small with many matches
 local RETURN_POSITION = Vector3.new(0, 4, 0)
 
 type Studio = { index: number, model: Model, floor: Part, inUse: boolean }
 local studios: { Studio } = {}
 
 local function build(index: number): Studio
-	local origin = Vector3.new(index * STUDIO_SPACING, STUDIO_HEIGHT, 0)
+	local col = (index - 1) % GRID_COLUMNS
+	local row = (index - 1) // GRID_COLUMNS
+	local origin = Vector3.new((col + 1) * STUDIO_SPACING, STUDIO_HEIGHT, (row + 1) * STUDIO_SPACING)
 	local model = Instance.new("Model")
 	model.Name = ("Studio%d"):format(index)
 

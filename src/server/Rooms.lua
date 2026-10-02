@@ -14,6 +14,7 @@ local Modes = require(Shared.Modes)
 local Net = require(Shared.Net)
 local Round = require(script.Parent.Round)
 local Studios = require(script.Parent.Studios)
+local VoiceIsolation = require(script.Parent.VoiceIsolation)
 
 export type Room = {
 	id: string,
@@ -293,7 +294,11 @@ function Rooms.leave(player: Player)
 	if not room then return end
 	if room.state == "playing" then
 		removeMember(room, player)
-		if room.round then room.round:removePlayer(player) end
+		if room.round then
+			room.round:removePlayer(player)
+			VoiceIsolation.release({ player })
+			VoiceIsolation.isolate(room.round.players)
+		end
 		fire(player, Net.S2C.RoomState, nil)
 		Rooms.pushMembers(room)
 		return
@@ -441,6 +446,8 @@ function Rooms.startMatch(room: Room)
 		local studio = Studios.acquire()
 		Studios.enter(studio, players)
 		local respawnConns = Studios.watchRespawns(studio, players)
+		VoiceIsolation.isolate(players)
+		for _, c in VoiceIsolation.watch(players) do table.insert(respawnConns, c) end
 
 		local round = Round.new(mode, players)
 		room.round = round
@@ -462,6 +469,7 @@ function Rooms.startMatch(room: Room)
 		round:destroy()
 		room.round = nil
 		for _, c in respawnConns do c:Disconnect() end
+		VoiceIsolation.release(players)
 		Studios.leave(players)
 		Studios.release(studio)
 		Rooms.endMatch(room)
@@ -522,6 +530,8 @@ function Rooms.kick(host: Player, targetId: any)
 	if room.round then
 		room.round:removePlayer(target)
 		Studios.leave({ target })
+		VoiceIsolation.release({ target })
+		VoiceIsolation.isolate(room.round.players)
 		fire(target, Net.S2C.MatchEnd, nil)
 	end
 	fire(target, Net.S2C.RoomState, nil)
