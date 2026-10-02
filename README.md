@@ -89,24 +89,53 @@ src/client/
   Screens/Lobby.lua          Hub UI: Play button, Join/Create/Your Room panel, pad banner
   Screens/                   TextPhases (premise/cast/script/caption), Draw, Dub,
                              Showcase, Vote, Results
+plugin/StoryDubSync.lua      Studio plugin: pull from GitHub and install into the open place
+scripts/sync.sh, sync.ps1    git pull + rojo serve / rojo build
 docs/DESIGN.md               The brief this build follows
 ```
 
-## Building
+## Getting it into Roblox Studio
 
-Requires [Rojo](https://rojo.space) 7. With [Rokit](https://github.com/rojo-rbx/rokit):
+Two options. Both put the same code in the same places.
+
+### Option A: Rojo (live sync, best for development)
+
+You need [Rojo](https://rojo.space) 7 on your PATH and the Rojo plugin in Studio
+(Studio → Plugins → Manage Plugins → search "Rojo"). Then, from a clone of this repo:
 
 ```sh
-rokit install
-rojo build -o StoryDub.rbxl      # build a place file
-# or, in Studio with the Rojo plugin:
-rojo serve
+./scripts/sync.sh          # macOS / Linux: git pull, then rojo serve
+.\scripts\sync.ps1         # Windows PowerShell
 ```
 
-Open the place in Roblox Studio, enable **Voice Chat** in Game Settings → Communication
-(needed for live dubbing; everything else works without it), and run a local server with
-2 or more players (Test → Clients and Servers). Use the Device emulator to check phone and
-tablet layouts.
+In Studio open any place, click **Rojo → Connect**, and the game appears under
+ReplicatedStorage, ServerScriptService, StarterPlayer and Workspace. Every `git pull`
+is reflected live while `rojo serve` is running. To produce a standalone place file instead:
+
+```sh
+./scripts/sync.sh build    # writes StoryDub.rbxl
+```
+
+### Option B: the StoryDub Sync plugin (no clone, no Rojo)
+
+`plugin/StoryDubSync.lua` is a Studio plugin that downloads the repo from GitHub and
+installs it directly into the open place, using the same `default.project.json` mapping.
+
+1. In Studio: **Plugins → Plugins Folder**. Copy `StoryDubSync.lua` into that folder and
+   restart Studio. (Or paste the file into a Script, right click → **Save as Local Plugin**.)
+2. Click **StoryDub → Sync from GitHub** on the Plugins toolbar.
+3. Repo is prefilled as `Vaericcc/Rblx`, branch as `claude/lucid-bardeen-xi7ati`. For a
+   private repo paste a GitHub personal access token with **Contents: read**.
+4. Press **Sync into this place**. The sync is one undo step.
+
+If Studio reports that HTTP requests are not enabled, turn on
+**Game Settings → Security → Allow HTTP Requests** and sync again.
+
+### After either option
+
+Enable **Voice Chat** in Game Settings → Communication (needed for live dubbing; everything
+else works without it), then run a local server with 2 or more players
+(Test → Clients and Servers). Use the Device emulator to check phone and tablet layouts.
 
 ## Safety notes
 
