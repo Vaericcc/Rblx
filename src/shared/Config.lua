@@ -1,8 +1,15 @@
 --!strict
 -- Global tuning knobs for StoryDub. Everything time-related is in seconds.
 
+local RunService = game:GetService("RunService")
+
+-- In Studio you can test alone: one player is enough and every mode is unlocked.
+-- Swap modes will hand your own work back to you, which is fine for checking screens.
+local SOLO_TESTING = RunService:IsStudio()
+
 local Config = {
-	MIN_PLAYERS = 2,
+	SOLO_TESTING = SOLO_TESTING,
+	MIN_PLAYERS = if SOLO_TESTING then 1 else 2,
 	MAX_PLAYERS = 10, -- per room
 
 	-- Lobby
@@ -36,5 +43,10 @@ local Config = {
 	POINTS_PER_VOTE = 100,
 	POINTS_FOR_SUBMITTING = 25,
 }
+
+-- Players a mode needs, honoring solo testing in Studio.
+function Config.playersNeeded(modeMinPlayers: number): number
+	return if SOLO_TESTING then 1 else modeMinPlayers
+end
 
 return Config

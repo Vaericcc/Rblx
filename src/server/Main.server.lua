@@ -17,7 +17,7 @@ local function modeList()
 			name = mode.name,
 			tagline = mode.tagline,
 			description = mode.description,
-			minPlayers = mode.minPlayers,
+			minPlayers = Config.playersNeeded(mode.minPlayers),
 		})
 	end
 	return list

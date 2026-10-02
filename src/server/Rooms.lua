@@ -72,7 +72,7 @@ function Rooms.pickMode(room: Room): Modes.Mode
 	local best: Modes.Mode? = nil
 	local bestCount = -1
 	for _, mode in Modes.list do
-		if #room.members < mode.minPlayers then continue end
+		if #room.members < Config.playersNeeded(mode.minPlayers) then continue end
 		local c = counts[mode.id] or 0
 		if c > bestCount then
 			best, bestCount = mode, c
