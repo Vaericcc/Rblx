@@ -7,7 +7,7 @@ local Layout = require(UI.Layout)
 local Results = {}
 
 function Results.show(container: Frame, data: any, ctx: any)
-	ctx.hud:set("Results", "Back to the lobby in a moment.", data.endsAt, false)
+	ctx.hud:set("Results", "Back to the hub in a moment.", data.endsAt, false)
 	local root = Layout.form(container)
 
 	local awards = Make.card({ Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, Make.list(nil, 8), Parent = root })
@@ -19,6 +19,7 @@ function Results.show(container: Frame, data: any, ctx: any)
 	end
 	for _, award in data.awards do
 		local w = data.winners[award.id]
+		if next(data.winners) == nil then continue end
 		local text = if w
 			then ("%s <b>%s</b>  <font color=\"#aaaabe\">“%s” · %d vote%s</font>"):format(award.emoji, award.name, w.title, w.votes, if w.votes == 1 then "" else "s")
 			else ("%s <b>%s</b>  <font color=\"#aaaabe\">no votes</font>"):format(award.emoji, award.name)

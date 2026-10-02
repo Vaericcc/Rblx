@@ -20,9 +20,10 @@
 		caption  describe the latest panel in one sentence (telephone-style)
 		scenes   (shared modes) the director writes one scene description per panel
 
-	A mode with `shared = true` has ONE project for the whole room. The first
-	player is the director; each other phase works on that single storyboard
-	and the draw phase gives every player one panel.
+	A mode with `teams = true` has ONE project per team. The first member of a
+	team is its director; writing phases are the director's, the draw phase
+	gives every teammate one panel, roles are claimed inside the team, and the
+	vote excludes your own team.
 ]]
 
 export type Phase = {
@@ -43,7 +44,7 @@ export type Mode = {
 	minPlayers: number,
 	phases: { Phase },
 	liveDub: boolean, -- during the showcase, call the dubber up to voice their lines over voice chat
-	shared: boolean?, -- one storyboard for the whole room (co-op)
+	teams: boolean?, -- one storyboard per team (VS Comic)
 }
 
 local Modes: { Mode } = {
@@ -107,13 +108,13 @@ local Modes: { Mode } = {
 		},
 	},
 	{
-		id = "coop",
-		name = "CO-OP COMIC",
-		tagline = "One story. Everyone draws.",
-		description = "One director writes the premise, the cast and a scene for every panel. Each player draws one scene. Then everyone claims a role and voices it.",
-		minPlayers = 2,
+		id = "versus",
+		name = "VS COMIC",
+		tagline = "Team up. Draw. Out-funny them.",
+		description = "Teams of 2 to 5. Each team's director writes the premise, cast and a scene per teammate. Everyone draws one panel, claims a role and voices it. Best comic wins.",
+		minPlayers = 4,
 		liveDub = true,
-		shared = true,
+		teams = true,
 		phases = {
 			{ kind = "premise", offset = 0, duration = 45 },
 			{ kind = "cast", offset = 0, duration = 60, count = 3 },

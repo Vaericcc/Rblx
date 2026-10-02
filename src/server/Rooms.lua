@@ -31,6 +31,8 @@ export type Room = {
 	round: Round.Round?,
 	padIndex: number?,
 	banned: { [number]: boolean },
+	teamMode: string, -- "random" | "pick" | "assign" (VS Comic only)
+	teams: { [number]: number }, -- userId -> team index, for pick/assign
 }
 
 local Rooms = {}
@@ -113,14 +115,99 @@ function Rooms.pickMode(room: Room): Modes.Mode
 	return best or Modes.list[1]
 end
 
+function Rooms.teamCount(room: Room): number
+	local n = #room.members
+	local count = math.max(1, math.min(math.ceil(n / Config.TEAM_MAX), math.max(1, n // Config.TEAM_MIN)))
+	if n >= Config.TEAM_MIN * 2 then count = math.max(2, count) end
+	return math.min(count, #Config.TEAM_COLORS)
+end
+
+function Rooms.setTeamMode(player: Player, mode: any)
+	local room = roomOf[player.UserId]
+	if not room or room.kind ~= "ui" or room.hostId ~= player.UserId or room.state ~= "waiting" then return end
+	if mode ~= "random" and mode ~= "pick" and mode ~= "assign" then return end
+	room.teamMode = mode
+	if mode == "random" then room.teams = {} end
+	Rooms.pushRoom(room)
+end
+
+-- Pick mode: a player picks their own team. Assign mode: the host sends { userId, team }.
+function Rooms.pickTeam(player: Player, data: any)
+	local room = roomOf[player.UserId]
+	if not room or room.kind ~= "ui" or room.state ~= "waiting" then return end
+	local targetId, team
+	if room.teamMode == "pick" then
+		targetId, team = player.UserId, math.floor(tonumber(data) or 0)
+	elseif room.teamMode == "assign" and room.hostId == player.UserId and typeof(data) == "table" then
+		targetId, team = math.floor(tonumber(data.userId) or 0), math.floor(tonumber(data.team) or 0)
+	else
+		return
+	end
+	if team < 1 or team > Rooms.teamCount(room) then return end
+	local isMember = false
+	for _, m in room.members do
+		if m.UserId == targetId then isMember = true end
+	end
+	if not isMember then return end
+	-- Respect team size
+	local size = 0
+	for _, t in room.teams do
+		if t == team then size += 1 end
+	end
+	if size >= Config.TEAM_MAX then return end
+	room.teams[targetId] = team
+	Rooms.pushRoom(room)
+end
+
+-- Final teams for a match: honour picks/assignments, fill the rest at random, keep sizes legal.
+function Rooms.finalTeams(room: Room, players: { Player }): { [number]: number }
+	local count = Rooms.teamCount(room)
+	local out: { [number]: number } = {}
+	local sizes: { [number]: number } = {}
+	for t = 1, count do sizes[t] = 0 end
+	for _, p in players do
+		local t = room.teams[p.UserId]
+		if t and t <= count and sizes[t] < Config.TEAM_MAX then
+			out[p.UserId] = t
+			sizes[t] += 1
+		end
+	end
+	local rng = Random.new()
+	local unassigned = {}
+	for _, p in players do
+		if not out[p.UserId] then table.insert(unassigned, p) end
+	end
+	for i = #unassigned, 2, -1 do
+		local j = rng:NextInteger(1, i)
+		unassigned[i], unassigned[j] = unassigned[j], unassigned[i]
+	end
+	for _, p in unassigned do
+		local best, bestSize = 1, math.huge
+		for t = 1, count do
+			if sizes[t] < bestSize then best, bestSize = t, sizes[t] end
+		end
+		out[p.UserId] = best
+		sizes[best] += 1
+	end
+	return out
+end
+
 function Rooms.serialize(room: Room)
 	local members = {}
 	for _, p in room.members do
 		table.insert(members, { userId = p.UserId, name = p.DisplayName, vote = room.modeVotes[p.UserId] })
 	end
 	local likely = Rooms.pickMode(room)
+	local teamList = {}
+	for userId, t in room.teams do
+		table.insert(teamList, { userId = userId, team = t })
+	end
 	return {
 		id = room.id,
+		teamMode = if room.kind == "pad" then "random" else room.teamMode,
+		teams = teamList,
+		teamColors = Config.TEAM_COLORS,
+		teamCount = Rooms.teamCount(room),
 		kind = room.kind,
 		padIndex = room.padIndex,
 		hostId = room.hostId,
@@ -212,6 +299,8 @@ local function newRoom(kind: string, host: Player, visibility: string): Room
 		round = nil,
 		padIndex = nil,
 		banned = {},
+		teamMode = "random",
+		teams = {},
 	}
 	rooms[room.id] = room
 	return room
@@ -227,6 +316,7 @@ local function removeMember(room: Room, player: Player)
 	local i = table.find(room.members, player)
 	if i then table.remove(room.members, i) end
 	room.modeVotes[player.UserId] = nil
+	room.teams[player.UserId] = nil
 	if roomOf[player.UserId] == room then
 		roomOf[player.UserId] = nil
 	end
@@ -454,7 +544,7 @@ function Rooms.requestStart(player: Player)
 end
 
 -- Send the party to its own reserved server. Returns false if that isn't possible.
-local function teleportToMatchServer(room: Room, mode: Modes.Mode, players: { Player }): boolean
+local function teleportToMatchServer(room: Room, mode: Modes.Mode, players: { Player }, teams: { [number]: number }?): boolean
 	if not Config.PRIVATE_MATCH_SERVERS then return false end
 	local ok, code = pcall(function()
 		return TeleportService:ReserveServer(game.PlaceId)
@@ -465,9 +555,13 @@ local function teleportToMatchServer(room: Room, mode: Modes.Mode, players: { Pl
 	end
 	local memberIds = {}
 	for _, p in players do table.insert(memberIds, p.UserId) end
+	local teamList = {}
+	if teams then
+		for userId, t in teams do table.insert(teamList, { userId = userId, team = t }) end
+	end
 	local options = Instance.new("TeleportOptions")
 	options.ReservedServerAccessCode = code
-	options:SetTeleportData({ modeId = mode.id, memberIds = memberIds, roomKind = room.kind })
+	options:SetTeleportData({ modeId = mode.id, memberIds = memberIds, roomKind = room.kind, teams = teamList })
 	for _, p in players do
 		fire(p, Net.S2C.Teleporting, { message = ("Starting %s. Moving your party to a private server..."):format(mode.name) })
 	end
@@ -488,10 +582,11 @@ function Rooms.startMatch(room: Room)
 	room.startsAt = nil
 	local mode = Rooms.pickMode(room)
 	local players = table.clone(room.members)
+	local teams = if mode.teams then Rooms.finalTeams(room, players) else nil
 	Rooms.pushRoom(room)
 	Rooms.pushListToAll()
 
-	if teleportToMatchServer(room, mode, players) then
+	if teleportToMatchServer(room, mode, players, teams) then
 		-- Members leave this server; PlayerRemoving cleans the room up.
 		-- Pad rooms must not grab them again on their way out.
 		task.delay(30, function()
@@ -510,7 +605,7 @@ function Rooms.startMatch(room: Room)
 		VoiceIsolation.isolate(players)
 		for _, c in VoiceIsolation.watch(players) do table.insert(respawnConns, c) end
 
-		local round = Round.new(mode, players)
+		local round = Round.new(mode, players, teams)
 		room.round = round
 		Rooms.pushMembers(room)
 		local ok, err = pcall(function()

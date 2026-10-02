@@ -30,14 +30,14 @@ function Vote.show(container: Frame, data: any, ctx: any)
 			Make.list(Enum.FillDirection.Horizontal, 10), Parent = row,
 		})
 		for _, p in data.projects do
-			local mine = p.ownerName == me
+			local mine = (data.mine and data.mine[tostring(p.index)]) or p.ownerName == me
 			local tile = Make("Frame", { BackgroundColor3 = Theme.panelAlt, Size = UDim2.fromOffset(cell, cell + 40), Make.corner(UDim.new(0, 8)), Make.pad(6), Parent = strip })
 			local thumb = Make("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, cell - 36), Parent = tile })
 			local c = Canvas.new(thumb, false)
 			c:setStrokes(p.thumbnail)
 			table.insert(canvases, c)
 			Make.label(p.title, 12, { Size = UDim2.new(1, 0, 0, 16), Position = UDim2.new(0, 0, 0, cell - 32), TextTruncate = Enum.TextTruncate.AtEnd, Parent = tile })
-			local credit = "by " .. p.ownerName
+			local credit = if p.teamColor then p.ownerName else "by " .. p.ownerName
 			if p.actors and #p.actors > 0 then credit ..= "  🎤 " .. table.concat(p.actors, ", ") end
 			Make.label(credit, 11, { TextColor3 = Theme.textDim, Size = UDim2.new(1, 0, 0, 14), Position = UDim2.new(0, 0, 0, cell - 16), TextTruncate = Enum.TextTruncate.AtEnd, Parent = tile })
 			local btn = Make.button(if mine then "yours" else "Pick", Theme.panel, function() end, {

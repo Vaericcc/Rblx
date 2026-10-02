@@ -37,7 +37,7 @@
           "Position": [
             0,
             1.5,
-            19
+            18
           ],
           "Transparency": 1,
           "CanCollide": true
@@ -60,7 +60,7 @@
       "$className": "Lighting",
       "$properties": {
         "Technology": "Future",
-        "ClockTime": 17.4
+        "ClockTime": 13.2
       }
     }
   }

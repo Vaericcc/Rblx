@@ -37,6 +37,7 @@ end
 local LOBBY_INIT = {
 	modes = modeList(),
 	minPlayers = Config.MIN_PLAYERS,
+	liveMinPlayers = if Config.SOLO_TESTING then 2 else Config.MIN_PLAYERS, -- what the published game requires
 	maxPlayers = Config.MAX_PLAYERS,
 }
 
@@ -70,6 +71,12 @@ local handlers: { [string]: (Player, any) -> () } = {
 	end,
 	[Net.C2S.VoteMode] = function(player, data)
 		Rooms.voteMode(player, data)
+	end,
+	[Net.C2S.SetTeamMode] = function(player, data)
+		Rooms.setTeamMode(player, data)
+	end,
+	[Net.C2S.PickTeam] = function(player, data)
+		Rooms.pickTeam(player, data)
 	end,
 	[Net.C2S.Submit] = function(player, data)
 		Rooms.onSubmit(player, data)

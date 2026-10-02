@@ -1,9 +1,10 @@
 --!strict
 --[[
 	Drawing phase.
-	Regular: tool rail on the left, canvas in the middle, story reference on the right.
-	Compact: scrolling tool rows above the canvas, story reference below.
-	Every stroke is streamed to the server so nothing is lost if you disconnect.
+	Regular: tool rail | colour rail | canvas | story reference.
+	Compact: tool row and colour row above the canvas; story reference below.
+	Tap a stroke to select it (no separate tool); the transform menu appears
+	under the tool rail while something is selected. Every edit streams to the server.
 ]]
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local Net = require(Shared.Net)
@@ -17,77 +18,68 @@ local StoryInfo = require(UI.StoryInfo)
 
 local Draw = {}
 
-local TOOLS: { { id: string, label: string, hint: string } } = {
-	{ id = "brush", label = "✏️", hint = "Brush" },
-	{ id = "eraser", label = "🧽", hint = "Eraser" },
-	{ id = "rect", label = "▭", hint = "Rectangle" },
-	{ id = "circle", label = "◯", hint = "Circle" },
-	{ id = "fill", label = "🪣", hint = "Fill: tap a shape to fill it, tap empty paper to colour the background" },
-	{ id = "select", label = "✥", hint = "Transform: tap a stroke, drag to move" },
-	{ id = "lasso", label = "➰", hint = "Lasso: circle strokes to select them" },
+local TOOLS = {
+	{ id = "brush", hint = "Brush. Tap any stroke to select it." },
+	{ id = "eraser", hint = "Eraser" },
+	{ id = "rect", hint = "Rectangle: drag corner to corner" },
+	{ id = "circle", hint = "Circle: drag corner to corner" },
+	{ id = "fill", hint = "Fill: tap a shape to fill it, tap paper to colour the background" },
+	{ id = "lasso", hint = "Lasso: circle strokes to select several" },
 }
 
-local function iconButton(parent: Instance, text: string, size: number, color: Color3, onClick: () -> ()): TextButton
-	local b = Make.button(text, color, onClick, {
-		Size = UDim2.fromOffset(size, size), TextSize = if #text > 2 then 11 else 18, TextColor3 = Theme.text, Parent = parent,
+local TRANSFORM = {
+	{ id = "flip_h", fn = function(c) c:flipSelection(false) end },
+	{ id = "flip_v", fn = function(c) c:flipSelection(true) end },
+	{ id = "rotate_left", fn = function(c) c:rotateSelection(-math.pi / 2) end },
+	{ id = "rotate_right", fn = function(c) c:rotateSelection(math.pi / 2) end },
+	{ id = "warp", fn = function(c) c:beginWarpMode() end },
+	{ id = "duplicate", fn = function(c) c:duplicateSelection() end },
+	{ id = "delete", fn = function(c) c:deleteSelection() end },
+}
+
+local function rail(parent: Instance, horizontal: boolean, props: { [any]: any }): ScrollingFrame
+	local p = { BackgroundColor3 = Theme.panel, Make.corner(), Make.pad(6) }
+	for k, v in props do p[k] = v end
+	local f = Make("Frame", p)
+	return Make("ScrollingFrame", {
+		BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1),
+		AutomaticCanvasSize = if horizontal then Enum.AutomaticSize.X else Enum.AutomaticSize.Y,
+		CanvasSize = UDim2.new(), ScrollBarThickness = 0,
+		ScrollingDirection = if horizontal then Enum.ScrollingDirection.X else Enum.ScrollingDirection.Y,
+		Make.list(if horizontal then Enum.FillDirection.Horizontal else Enum.FillDirection.Vertical, 6, Enum.HorizontalAlignment.Center),
+		Parent = f,
 	})
-	return b
 end
 
 function Draw.show(container: Frame, data: any, ctx: any)
 	local compact = Responsive.isCompact()
 	local v = Responsive.viewport()
-	local size = if compact then 36 else 40
+	local size = if compact then 40 else 44
+	local railThick = size + 14
 	local main, side = Layout.split(container, {
-		mainFraction = 0.66,
-		compactMainHeight = math.min(v.X - 32, math.floor(v.Y * 0.56)) + 44 + 2 * (size + 14),
+		mainFraction = 0.68,
+		compactMainHeight = math.min(v.X - 32, math.floor(v.Y * 0.56)) + 44 + 2 * (railThick + 4),
 	})
 
 	local panelCount: number = data.panels
 	local panelData: { any } = {}
 	local currentPanel = 1
-	local canvas: any
 
-	-- Layout skeleton --------------------------------------------------------
 	local tabs = Make.row(36, 6, { Parent = main })
-	local hint = Make.label("", 12, { TextColor3 = Theme.textDim, Size = UDim2.new(0.5, 0, 0, 36), Position = UDim2.new(0.5, 0, 0, 0), TextXAlignment = Enum.TextXAlignment.Right, TextYAlignment = Enum.TextYAlignment.Center, Parent = main })
+	local hint = Make.label("", 12, { TextColor3 = Theme.textDim, Size = UDim2.new(0.55, 0, 0, 36), Position = UDim2.new(0.45, 0, 0, 0), TextXAlignment = Enum.TextXAlignment.Right, TextYAlignment = Enum.TextYAlignment.Center, Parent = main })
 
-	local toolRail: Frame, colorRail: Frame, canvasArea: Frame
-	local function rail(horizontal: boolean, props: { [any]: any }): Frame
-		local p = {
-			BackgroundColor3 = Theme.panel,
-			Make.corner(),
-			Make.pad(6),
-		}
-		for k, val in props do p[k] = val end
-		local f = Make("Frame", p)
-		local scroller = Make("ScrollingFrame", {
-			BackgroundTransparency = 1,
-			Size = UDim2.fromScale(1, 1),
-			AutomaticCanvasSize = if horizontal then Enum.AutomaticSize.X else Enum.AutomaticSize.Y,
-			CanvasSize = UDim2.new(),
-			ScrollBarThickness = 0,
-			ScrollingDirection = if horizontal then Enum.ScrollingDirection.X else Enum.ScrollingDirection.Y,
-			Make.list(if horizontal then Enum.FillDirection.Horizontal else Enum.FillDirection.Vertical, 6, Enum.HorizontalAlignment.Center),
-			Parent = f,
-		})
-		return scroller
-	end
-
+	local toolRail: ScrollingFrame, colorRail: ScrollingFrame, canvasArea: Frame
 	if compact then
-		local railH = size + 14
-		toolRail = rail(true, { Size = UDim2.new(1, 0, 0, railH), Position = UDim2.fromOffset(0, 42), Parent = main })
-		colorRail = rail(true, { Size = UDim2.new(1, 0, 0, railH), Position = UDim2.fromOffset(0, 42 + railH + 4), Parent = main })
-		canvasArea = Make("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 1, -(50 + 2 * railH)), Position = UDim2.fromOffset(0, 50 + 2 * railH), Parent = main })
+		toolRail = rail(main, true, { Size = UDim2.new(1, 0, 0, railThick), Position = UDim2.fromOffset(0, 42), Parent = main })
+		colorRail = rail(main, true, { Size = UDim2.new(1, 0, 0, railThick), Position = UDim2.fromOffset(0, 42 + railThick + 4), Parent = main })
+		canvasArea = Make("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 1, -(50 + 2 * railThick)), Position = UDim2.fromOffset(0, 50 + 2 * railThick), Parent = main })
 	else
-		local railW = size + 14
-		toolRail = rail(false, { Size = UDim2.new(0, railW, 1, -44), Position = UDim2.fromOffset(0, 44), Parent = main })
-		colorRail = rail(false, { Size = UDim2.new(0, railW, 1, -44), Position = UDim2.fromOffset(railW + 6, 44), Parent = main })
-		canvasArea = Make("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, -(2 * railW + 14), 1, -44), Position = UDim2.fromOffset(2 * railW + 14, 44), Parent = main })
+		toolRail = rail(main, false, { Size = UDim2.new(0, railThick, 1, -44), Position = UDim2.fromOffset(0, 44), Parent = main })
+		colorRail = rail(main, false, { Size = UDim2.new(0, railThick, 1, -44), Position = UDim2.fromOffset(railThick + 6, 44), Parent = main })
+		canvasArea = Make("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, -(2 * railThick + 14), 1, -44), Position = UDim2.fromOffset(2 * railThick + 14, 44), Parent = main })
 	end
-	canvas = Canvas.new(canvasArea, true)
+	local canvas = Canvas.new(canvasArea, true)
 
-	-- Streaming ---------------------------------------------------------------
 	canvas.onOp = function(op: string, payload: any)
 		panelData[currentPanel] = canvas:getStrokes()
 		local msg: any = { panel = currentPanel, op = op }
@@ -96,73 +88,64 @@ function Draw.show(container: Frame, data: any, ctx: any)
 		ctx.markDirty()
 	end
 
-	-- Tools -------------------------------------------------------------------
+	-- Tools ----------------------------------------------------------------
 	local toolButtons: { [string]: TextButton } = {}
 	local function paintTools()
 		for id, b in toolButtons do
 			b.BackgroundColor3 = if canvas.tool == id then Theme.accent else Theme.panelAlt
 			b.TextColor3 = if canvas.tool == id then Theme.bg else Theme.text
+			local img = b:FindFirstChildOfClass("ImageLabel")
+			if img then img.ImageColor3 = b.TextColor3 end
 		end
 	end
 	for i, t in TOOLS do
-		local b = iconButton(toolRail, t.label, size, Theme.panelAlt, function()
+		local b = Make.iconButton(t.id, size, Theme.panelAlt, function()
 			canvas:setTool(t.id :: any)
 			hint.Text = t.hint
 			paintTools()
-		end)
-		b.LayoutOrder = i
+		end, { LayoutOrder = i, Parent = toolRail })
 		toolButtons[t.id] = b
 	end
 	Make.spacer(4, 20).Parent = toolRail
-	local mirrorBtn = iconButton(toolRail, "⇔", size, Theme.panelAlt, function() end)
-	mirrorBtn.LayoutOrder = 21
+	local mirrorBtn = Make.iconButton("mirror", size, Theme.panelAlt, function() end, { LayoutOrder = 21, Parent = toolRail })
 	mirrorBtn.Activated:Connect(function()
 		canvas.mirror = not canvas.mirror
 		mirrorBtn.BackgroundColor3 = if canvas.mirror then Theme.accent2 else Theme.panelAlt
 		hint.Text = if canvas.mirror then "Mirror on: strokes are drawn on both sides" else "Mirror off"
 	end)
-	local filledBtn = iconButton(toolRail, "◼", size, Theme.panelAlt, function() end)
-	filledBtn.LayoutOrder = 22
+	local filledBtn = Make.iconButton("shape_outline", size, Theme.panelAlt, function() end, { LayoutOrder = 22, Parent = toolRail })
 	filledBtn.Activated:Connect(function()
 		canvas.filled = not canvas.filled
 		filledBtn.BackgroundColor3 = if canvas.filled then Theme.accent2 else Theme.panelAlt
-		filledBtn.Text = if canvas.filled then "◼" else "◻"
+		filledBtn.Text = if canvas.filled then "Solid" else "Line"
 		hint.Text = if canvas.filled then "Shapes are filled" else "Shapes are outlined"
 	end)
-	filledBtn.Text = "◻"
 	Make.spacer(4, 30).Parent = toolRail
-	iconButton(toolRail, "Undo", size, Theme.panelAlt, function() canvas:undo() end).LayoutOrder = 31
-	iconButton(toolRail, "Clear", size, Theme.danger, function() canvas:clear() end).LayoutOrder = 32
+	Make.iconButton("undo", size, Theme.panelAlt, function() canvas:undo() end, { LayoutOrder = 31, Parent = toolRail })
+	Make.iconButton("clear", size, Theme.danger, function() canvas:clear() end, { LayoutOrder = 32, Parent = toolRail })
 
-	-- Selection actions (visible only with a selection)
-	Make.spacer(4, 40).Parent = toolRail
-	local selButtons = {}
-	local function selAction(order: number, text: string, color: Color3, fn: () -> ())
-		local b = iconButton(toolRail, text, size, color, fn)
-		b.LayoutOrder = order
-		b.Visible = false
-		table.insert(selButtons, b)
+	-- Transform submenu (visible only with a selection)
+	local divider = Make.spacer(6, 40)
+	divider.Parent = toolRail
+	local tfButtons = {}
+	for i, def in TRANSFORM do
+		local b = Make.iconButton(def.id, size, Theme.panel, function() def.fn(canvas) end, { LayoutOrder = 40 + i, Visible = false, TextColor3 = Theme.accent2, Parent = toolRail })
+		if def.id == "delete" then b.TextColor3 = Theme.danger end
+		table.insert(tfButtons, b)
 	end
-	selAction(41, "+", Theme.panelAlt, function() canvas:scaleSelection(1.15) end)
-	selAction(42, "−", Theme.panelAlt, function() canvas:scaleSelection(1 / 1.15) end)
-	selAction(43, "Flip", Theme.panelAlt, function() canvas:flipSelection() end)
-	selAction(44, "Copy", Theme.panelAlt, function() canvas:duplicateSelection() end)
-	selAction(45, "Del", Theme.danger, function() canvas:deleteSelection() end)
 	canvas.onSelectionChanged = function(has: boolean)
-		for _, b in selButtons do b.Visible = has end
-		if has then hint.Text = "Drag to move. Use + − to resize, Flip, Copy or Del." end
+		for _, b in tfButtons do b.Visible = has end
+		if has then hint.Text = "Drag inside the box to move. Handles stretch; corners keep proportion; the top knob rotates." end
 	end
 	paintTools()
-	hint.Text = "Brush"
+	hint.Text = TOOLS[1].hint
 
-	-- Colours and sizes -------------------------------------------------------
+	-- Colours and sizes ------------------------------------------------------
 	local swatches = {}
 	for i, color in Theme.palette do
 		local sw = Make("TextButton", {
-			Text = "", BackgroundColor3 = color, Size = UDim2.fromOffset(size, size * 0.65), LayoutOrder = i,
-			Make.corner(UDim.new(0, 8)),
-			Make("UIStroke", { Color = Theme.text, Thickness = if i == 1 then 2 else 0 }),
-			Parent = colorRail,
+			Text = "", BackgroundColor3 = color, Size = UDim2.fromOffset(size, math.floor(size * 0.6)), LayoutOrder = i,
+			Make.corner(UDim.new(0, 8)), Make("UIStroke", { Color = Theme.text, Thickness = if i == 1 then 2 else 0 }), Parent = colorRail,
 		})
 		sw.Activated:Connect(function()
 			canvas.color = color
@@ -174,13 +157,11 @@ function Draw.show(container: Frame, data: any, ctx: any)
 	Make.spacer(4, 50).Parent = colorRail
 	local sizeButtons = {}
 	for i, brush in Theme.brushSizes do
+		local dot = 6 + i * 6
 		local b = Make("TextButton", {
-			Text = "", BackgroundColor3 = Theme.panelAlt, Size = UDim2.fromOffset(size, size * 0.75), LayoutOrder = 50 + i,
+			Text = "", BackgroundColor3 = Theme.panelAlt, Size = UDim2.fromOffset(size, math.floor(size * 0.8)), LayoutOrder = 50 + i,
 			Make.corner(UDim.new(0, 8)),
-			Make("Frame", {
-				BackgroundColor3 = Theme.text, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5),
-				Size = UDim2.fromOffset(4 + brush * 0.6, 4 + brush * 0.6), Make.corner(UDim.new(0.5, 0)),
-			}),
+			Make("Frame", { BackgroundColor3 = Theme.text, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(dot, dot), Make.corner(UDim.new(0.5, 0)) }),
 			Parent = colorRail,
 		})
 		b.Activated:Connect(function()
@@ -192,7 +173,7 @@ function Draw.show(container: Frame, data: any, ctx: any)
 	end
 	sizeButtons[2].BackgroundColor3 = Theme.accent2
 
-	-- Panel tabs --------------------------------------------------------------
+	-- Panel tabs ------------------------------------------------------------
 	local tabButtons = {}
 	local function selectPanel(i: number)
 		panelData[currentPanel] = canvas:getStrokes()
@@ -204,13 +185,11 @@ function Draw.show(container: Frame, data: any, ctx: any)
 		end
 	end
 	for i = 1, panelCount do
-		tabButtons[i] = Make.pill(("Panel %d"):format(data.startIndex + i - 1), false, function() selectPanel(i) end, {
-			Size = UDim2.new(0, if compact then 84 else 100, 1, 0), Parent = tabs,
-		})
+		tabButtons[i] = Make.pill(("Panel %d"):format(data.startIndex + i - 1), false, function() selectPanel(i) end, { Size = UDim2.new(0, 100, 1, 0), Parent = tabs })
 	end
-	if panelCount == 1 and data.totalPanels then
-		tabButtons[1].Text = ("Panel %d of %d"):format(data.startIndex, data.totalPanels)
-		tabButtons[1].Size = UDim2.new(0, 130, 1, 0)
+	if panelCount == 1 then
+		tabButtons[1].Text = if data.totalPanels then ("Panel %d of %d"):format(data.startIndex, data.totalPanels) else "Your panel"
+		tabButtons[1].Size = UDim2.new(0, 140, 1, 0)
 	end
 	selectPanel(1)
 
@@ -222,7 +201,8 @@ function Draw.show(container: Frame, data: any, ctx: any)
 		Make.label("Directed by " .. (data.ownerName or "?"), 12, { TextColor3 = Theme.textDim, Parent = sceneCard })
 	end
 	local info = StoryInfo.build(side, {
-		premise = data.premise, cast = data.cast, roles = data.roles, prompt = data.prompt, ownerName = if data.scene then nil else data.ownerName, lines = data.lines,
+		premise = data.premise, cast = data.cast, roles = data.roles, prompt = data.prompt,
+		ownerName = if data.scene then nil else data.ownerName, lines = data.lines,
 	})
 	info.Size = UDim2.new(1, 0, 0, 0)
 	info.AutomaticSize = Enum.AutomaticSize.Y

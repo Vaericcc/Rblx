@@ -103,6 +103,73 @@ function Strokes.mirrorX(s: Stroke): Stroke
 	return copy
 end
 
+-- Shapes are axis-aligned; rotating or warping them turns them into paths.
+-- Fill is lost in the process (a Frame can't be an arbitrary polygon).
+function Strokes.toPath(s: Stroke): Stroke
+	if s.t ~= "r" and s.t ~= "c" then return s end
+	local minX, minY, maxX, maxY = Strokes.bounds(s)
+	local pts = {}
+	if s.t == "r" then
+		pts = { minX, minY, maxX, minY, maxX, maxY, minX, maxY, minX, minY }
+	else
+		local cx, cy = (minX + maxX) / 2, (minY + maxY) / 2
+		local rx, ry = (maxX - minX) / 2, (maxY - minY) / 2
+		for i = 0, 32 do
+			local a = i / 32 * math.pi * 2
+			table.insert(pts, cx + math.cos(a) * rx)
+			table.insert(pts, cy + math.sin(a) * ry)
+		end
+	end
+	return { t = "p", c = table.clone(s.c), w = s.w, p = pts }
+end
+
+function Strokes.rotateAbout(s: Stroke, cx: number, cy: number, radians: number): Stroke
+	local out = Strokes.toPath(s)
+	local cosA, sinA = math.cos(radians), math.sin(radians)
+	for i = 1, #out.p - 1, 2 do
+		local dx, dy = out.p[i] - cx, out.p[i + 1] - cy
+		out.p[i] = clamp01(cx + dx * cosA - dy * sinA)
+		out.p[i + 1] = clamp01(cy + dx * sinA + dy * cosA)
+	end
+	return out
+end
+
+-- Non-uniform scale about a point (used by edge handles).
+function Strokes.scaleXY(s: Stroke, cx: number, cy: number, kx: number, ky: number)
+	for i = 1, #s.p - 1, 2 do
+		s.p[i] = clamp01(cx + (s.p[i] - cx) * kx)
+		s.p[i + 1] = clamp01(cy + (s.p[i + 1] - cy) * ky)
+	end
+	s.w = math.clamp(s.w * math.sqrt(math.abs(kx * ky)), Config.MIN_BRUSH, Config.MAX_BRUSH)
+end
+
+function Strokes.mirrorY(s: Stroke, cy: number)
+	for i = 2, #s.p, 2 do
+		s.p[i] = clamp01(2 * cy - s.p[i])
+	end
+end
+
+-- Bilinear warp: map the stroke's bounding box corners (TL, TR, BR, BL) onto
+-- four new corners. Each point is expressed in box-relative (u, v) and
+-- re-projected into the warped quad.
+function Strokes.warp(s: Stroke, box: { number }, quad: { number }): Stroke
+	local out = Strokes.toPath(s)
+	local minX, minY, maxX, maxY = box[1], box[2], box[3], box[4]
+	local w, h = math.max(maxX - minX, 1e-6), math.max(maxY - minY, 1e-6)
+	for i = 1, #out.p - 1, 2 do
+		local u = (out.p[i] - minX) / w
+		local v = (out.p[i + 1] - minY) / h
+		-- quad = {tlx,tly, trx,try, brx,bry, blx,bly}
+		local topX = quad[1] + (quad[3] - quad[1]) * u
+		local topY = quad[2] + (quad[4] - quad[2]) * u
+		local botX = quad[7] + (quad[5] - quad[7]) * u
+		local botY = quad[8] + (quad[6] - quad[8]) * u
+		out.p[i] = clamp01(topX + (botX - topX) * v)
+		out.p[i + 1] = clamp01(topY + (botY - topY) * v)
+	end
+	return out
+end
+
 -- Ray-casting point-in-polygon; poly is a flat {x1,y1,x2,y2,...}.
 function Strokes.pointInPolygon(poly: { number }, x: number, y: number): boolean
 	local inside = false

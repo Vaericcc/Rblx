@@ -13,7 +13,7 @@ story back while the dubbers perform their lines over voice chat, and hands out 
 | **CLASSIC** | Premise → Cast → Claim roles → Draw 1 panel → Write lines | Whoever claimed each character |
 | **COMIC** | Premise → Cast → Claim roles → Draw 4 panels → Write lines | Whoever claimed each character |
 | **STORY SWAP** | Premise → Cast → Claim roles → *swap* → Draw 3 panels → Write lines | Whoever claimed each character |
-| **CO-OP COMIC** *(new)* | Premise → Cast → Director writes a scene per panel → Claim roles → Everyone draws one panel → Write lines | Whoever claimed each character |
+| **VS COMIC** *(new)* | Teams of 2 to 5. Each team's director: Premise → Cast → a scene per teammate. Teammates: Claim roles → draw one panel each → write lines. Vote for the best comic, your own team excluded | Whoever claimed each character |
 | **SCRIPT SWAP** | Cast → Claim roles → Script → *swap* → Draw to their script | Whoever claimed each character performs the writer's lines |
 | **BLIND DUB** *(new)* | Premise → Cast → Draw 3 panels | The next player, who **only sees the pictures**. The real premise is revealed after the dub. |
 | **BROKEN TELEPHONE** *(new)* | Premise → Draw → Describe → Draw → Describe | Nobody; the showcase plays the whole mutation chain |
@@ -64,11 +64,39 @@ movement are disabled so nothing gets in the way. See `docs/DESIGN.md` for the f
 ## Drawing tools
 
 Brush, eraser, rectangle, circle (outlined or filled), fill (tap a shape to fill it, tap
-empty paper to colour the background), mirror (draws a horizontal twin of every stroke),
-transform (tap a stroke, drag to move, resize, flip, copy, delete) and lasso (circle several
-strokes to select them all). Every stroke streams to the server as you draw, so a disconnect
+empty paper to colour the background), mirror (draws a horizontal twin of every stroke) and
+lasso (circle several strokes to select them all). There is no separate select tool: with any
+tool, hovering a stroke highlights it and a tap selects it. The transform box has eight
+stretch handles (corners keep proportion), a rotate knob above it, drag-inside-to-move, and a
+submenu with Flip H, Flip V, Rotate 90, Warp (drag a corner to bend), Duplicate and Delete.
+Rotating or warping a rectangle or circle turns it into a path. Every stroke streams to the server as you draw, so a disconnect
 loses nothing; the panel is committed when you submit or the timer ends. Players with nothing
 to draw watch the artists live.
+
+## Menus, fonts and icons
+
+Every menu uses one animated system (`src/client/UI/Menu.lua`): a blurred, desaturated world
+behind a diagonal ink slash, a huge vertical title, slanted item bars that cascade in, and a
+paper content panel. It drives Play, rooms, the in-match pause menu (Esc / P / Start) and a
+Settings page (volumes, auto-unmute, UI size, colour-blind palette, reduce motion).
+
+Fonts: Bangers for headings and buttons, Gotham Medium for body text, Patrick Hand for
+showcase speech bubbles. Icons live in `src/client/UI/Icons.lua`: paste uploaded asset IDs into
+the `ids` table and every button switches from its text label to the image. Expected names
+(256×256 white PNG, transparent): brush, eraser, rect, circle, fill, transform, lasso, mirror,
+shape_filled, shape_outline, undo, clear, size_small/medium/large/huge, flip_h, flip_v,
+rotate_left, rotate_right, warp, duplicate, delete, play, close, join, create, platform, room,
+settings, mic_on, mic_off, skip, kick, crown, lock, globe, star, points, and mode emblems
+(512×512) mode_classic, mode_comic, mode_story_swap, mode_script_swap, mode_versus,
+mode_blind_dub, mode_telephone.
+
+## The hub
+
+A sunken gothic courtyard cut into a grass hill: stacked masonry walls with buttresses and a
+parapet, four arched gateways with torches facing the four platforms, corner towers, a
+flagstone floor, a central dais with the StoryDub sign, and planters. Drop tree models into
+`ReplicatedStorage/Assets/Trees` (and props into `Assets/Props`) in Studio and the hub clones
+them onto the terraces; without them it builds its own.
 
 ## Skipping and removing
 

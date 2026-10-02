@@ -25,8 +25,20 @@ Players with nothing to draw watch the artists live.
 **Progression.** Round scores accumulate in a DataStore. Totals show in the hub and gate
 Pro rooms.
 
-**Presentation.** The menu reads like a comic page: cream paper, heavy ink borders, a pop
-colour for emphasis. The hub is a floating stone island at golden hour.
+**Presentation.** One animated menu system in the Persona / Dishonored register: blurred
+desaturated world, diagonal ink slash, vertical Bangers title, slanted bars cascading in with
+overshoot, paper content panel, sound stabs. Fonts are Bangers / Gotham Medium / Patrick Hand.
+Icons come from an asset-ID registry with text fallbacks. The hub is a sunken gothic stone
+courtyard in a grass hill, modelled on the reference: masonry walls, four arched gateways,
+flagstones, a dais, planters, torches, cool daylight.
+
+**Transform.** Clip Studio style: no select tool; tap a stroke to select; eight stretch
+handles, rotate knob, drag to move; submenu with flips, 90° rotations, warp, duplicate, delete;
+lasso for multi-select.
+
+**VS Comic.** Teams of 2 to 5 (Random, Pick, or host Assign on hosted rooms; Random on
+platforms). One comic per team, director writes, teammates draw one panel each, roles claimed
+within the team, vote excludes your own team, winning team takes the points.
 
 ## Private match servers
 

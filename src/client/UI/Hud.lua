@@ -37,7 +37,7 @@ function Hud.new(parent: Instance): Hud
 	self.submitted = false
 	local compact = Responsive.isCompact()
 
-	self.title = Make.heading("", if compact then 20 else 26, { Size = UDim2.new(1, 0, 0, if compact then 26 else 30), TextTruncate = Enum.TextTruncate.AtEnd })
+	self.title = Make.heading("", if compact then 26 else 34, { Font = Theme.fontDisplay, Size = UDim2.new(1, 0, 0, if compact then 26 else 30), TextTruncate = Enum.TextTruncate.AtEnd })
 	self.instructions = Make.label("", if compact then 12 else 15, {
 		TextColor3 = Theme.textDim,
 		Size = UDim2.new(1, 0, 0, if compact then 16 else 36),
@@ -53,8 +53,8 @@ function Hud.new(parent: Instance): Hud
 	self.submit = Make.button("Submit", Theme.good, function()
 		if self.onSubmit and not self.submitted then self.onSubmit() end
 	end, { Visible = false })
-	self.players = Make.button("👥", Theme.panelAlt, function() end, {
-		Size = UDim2.fromOffset(44, 42), TextSize = 18, TextColor3 = Theme.text,
+	self.players = Make.button("MENU", Theme.panelAlt, function() end, {
+		Size = UDim2.fromOffset(64, 42), TextSize = 18, Font = Theme.fontDisplay, TextColor3 = Theme.text,
 	})
 
 	self.top = Make("Frame", {
@@ -82,11 +82,11 @@ function Hud.new(parent: Instance): Hud
 			Size = UDim2.new(1, 0, 0, Hud.BOTTOM_HEIGHT_COMPACT),
 			Parent = parent,
 		})
-		self.submit.Size = UDim2.new(1, -60, 0, 52)
-		self.submit.Position = UDim2.new(0, 60, 0, 6)
+		self.submit.Size = UDim2.new(1, -78, 0, 52)
+		self.submit.Position = UDim2.new(0, 78, 0, 6)
 		self.submit.TextSize = 20
 		self.submit.Parent = self.bottom
-		self.players.Size = UDim2.fromOffset(52, 52)
+		self.players.Size = UDim2.fromOffset(70, 52)
 		self.players.Position = UDim2.new(0, 0, 0, 6)
 		self.players.Parent = self.bottom
 	else
@@ -94,7 +94,7 @@ function Hud.new(parent: Instance): Hud
 		self.submit.Size = UDim2.new(0, 150, 0, 42)
 		self.submit.Position = UDim2.new(1, -250, 0.5, -21)
 		self.submit.Parent = self.top
-		self.players.Position = UDim2.new(1, -304, 0.5, -21)
+		self.players.Position = UDim2.new(1, -324, 0.5, -21)
 		self.players.Parent = self.top
 	end
 
@@ -122,9 +122,11 @@ function Hud.set(self: Hud, title: string, instructions: string, endsAt: number?
 	self.endsAt = endsAt
 	self.submitted = false
 	self.submit.Visible = canSubmit
-	self.submit.Text = "Submit"
+	self.submit.Text = "SUBMIT"
+	self.submit.Font = Theme.fontDisplay
+	self.submit.TextSize = 22
 	self.submit.BackgroundColor3 = Theme.good
-	self.submit.TextColor3 = Theme.text
+	self.submit.TextColor3 = Theme.bg
 end
 
 function Hud.setVisible(self: Hud, visible: boolean)
@@ -142,7 +144,7 @@ end
 function Hud.unmarkSubmitted(self: Hud)
 	if self.submitted then
 		self.submitted = false
-		self.submit.Text = "Update"
+		self.submit.Text = "UPDATE"
 		self.submit.BackgroundColor3 = Theme.accent2
 	end
 end

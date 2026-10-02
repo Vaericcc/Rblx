@@ -24,7 +24,7 @@ function Claim.show(container: Frame, data: any, ctx: any)
 
 	Make.label(
 		if data.shared
-			then "It's everyone's comic. Tap up to 2 characters to voice."
+			then ("%s: tap up to 2 characters to voice in your team's comic."):format(data.teamName or "Your team")
 			elseif solo then "You're testing alone, so you voice your own cast. Tap the characters you want."
 			else ("Claim up to %d characters per story. You can't voice your own story."):format(data.maxRoles or 2),
 		14, { TextColor3 = Theme.textDim, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, Parent = root })

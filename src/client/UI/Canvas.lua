@@ -1,12 +1,14 @@
 --!strict
 --[[
-	Square drawing surface. Strokes are stored normalized (0..1) so the same
-	data renders identically at any size, on any client.
+	Square drawing surface. Strokes are normalized (0..1) so the same data
+	renders identically everywhere.
 
-	Tools: brush, eraser, rect, circle, fill, select, lasso. `mirror` draws a
-	horizontally mirrored twin of every brush stroke/shape. `filled` makes
-	shapes solid. Every change calls `onOp(op, payload)` so the owner can
-	stream it to the server: add {stroke}, undo, clear, set {strokes}.
+	Tools: brush, eraser, rect, circle, fill, lasso. There is no separate
+	"select" tool: with any drawing tool active, a tap (press and release
+	without dragging) on a stroke selects it, Clip Studio style. A selection
+	shows a transform box with eight stretch handles and a rotate handle;
+	drag inside the box to move. Lasso selects several strokes at once.
+	Every change calls onOp(op, payload) so the owner can stream it.
 ]]
 local UserInputService = game:GetService("UserInputService")
 
@@ -19,7 +21,8 @@ local Theme = require(script.Parent.Theme)
 local Canvas = {}
 Canvas.__index = Canvas
 
-export type Tool = "brush" | "eraser" | "rect" | "circle" | "fill" | "select" | "lasso"
+export type Tool = "brush" | "eraser" | "rect" | "circle" | "fill" | "lasso"
+type Gesture = "none" | "pending" | "draw" | "shape" | "lasso" | "move" | "stretch" | "rotate" | "warp"
 
 export type Canvas = typeof(setmetatable({} :: {
 	frame: Frame,
@@ -32,17 +35,19 @@ export type Canvas = typeof(setmetatable({} :: {
 	width: number,
 	mirror: boolean,
 	filled: boolean,
-	-- in-progress gesture
-	dragging: boolean,
-	startX: number,
-	startY: number,
-	lastX: number,
-	lastY: number,
+	gesture: Gesture,
+	startX: number, startY: number, lastX: number, lastY: number,
 	current: Strokes.Stroke?,
 	preview: { GuiObject },
-	-- selection (indices into strokes)
 	selection: { number },
-	selectionBox: Frame?,
+	selBox: { number }?, -- minX,minY,maxX,maxY at gesture start
+	snapshot: { Strokes.Stroke }?, -- copies of selected strokes at gesture start
+	handle: string?, -- which handle is being dragged
+	warpQuad: { number }?,
+	hoverIdx: number?,
+	hoverFrame: Frame?,
+	boxFrame: Frame?,
+	handles: { [string]: TextButton },
 	connections: { RBXScriptConnection },
 	onChange: (() -> ())?,
 	onOp: ((string, any) -> ())?,
@@ -50,18 +55,19 @@ export type Canvas = typeof(setmetatable({} :: {
 }, Canvas))
 
 local MIN_POINT_DIST = 0.004
+local TAP_DIST = 0.006 -- below this a press is a tap, not a drag
 local PICK_RADIUS = 0.03
+local HANDLE_PX = 18
+local HANDLES = { "tl", "t", "tr", "r", "br", "b", "bl", "l" }
+
+----------------------------------------------------------------------------
 
 function Canvas.new(parent: Instance, editable: boolean): Canvas
 	local self = setmetatable({}, Canvas)
 	self.frame = Make("Frame", {
-		BackgroundColor3 = Theme.paper,
-		BorderSizePixel = 0,
-		Size = UDim2.fromScale(1, 1),
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.5),
-		ClipsDescendants = true,
-		Active = true,
+		BackgroundColor3 = Theme.paper, BorderSizePixel = 0,
+		Size = UDim2.fromScale(1, 1), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5),
+		ClipsDescendants = true, Active = true,
 		Make.corner(UDim.new(0, 10)),
 		Make("UIStroke", { Color = Color3.fromRGB(0, 0, 0), Thickness = 1, Transparency = 0.6 }),
 		Make("UIAspectRatioConstraint", { AspectRatio = 1 }),
@@ -76,17 +82,21 @@ function Canvas.new(parent: Instance, editable: boolean): Canvas
 	self.width = Theme.brushSizes[2]
 	self.mirror = false
 	self.filled = false
-	self.dragging = false
+	self.gesture = "none"
 	self.startX, self.startY, self.lastX, self.lastY = 0, 0, 0, 0
 	self.current = nil
 	self.preview = {}
 	self.selection = {}
-	self.selectionBox = nil
+	self.selBox = nil
+	self.snapshot = nil
+	self.handle = nil
+	self.warpQuad = nil
+	self.hoverIdx = nil
+	self.hoverFrame = nil
+	self.boxFrame = nil
+	self.handles = {}
 	self.connections = {}
-
-	table.insert(self.connections, self.frame:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
-		self:render()
-	end))
+	table.insert(self.connections, self.frame:GetPropertyChangedSignal("AbsoluteSize"):Connect(function() self:render() end))
 	if editable then self:bindInput() end
 	return self
 end
@@ -154,20 +164,27 @@ function Canvas.drawShape(self: Canvas, into: Frame, stroke: Strokes.Stroke, z: 
 	return f
 end
 
-function Canvas.renderStroke(self: Canvas, stroke: Strokes.Stroke, into: Frame, z: number?)
+function Canvas.renderStroke(self: Canvas, stroke: Strokes.Stroke, into: Frame, z: number?, colorOverride: Color3?, widthBoost: number?)
 	if stroke.t == "bg" then return end
 	if stroke.t == "r" or stroke.t == "c" then
-		self:drawShape(into, stroke, z)
+		local f = self:drawShape(into, stroke, z)
+		if colorOverride then
+			f.BackgroundTransparency = 1
+			local o = f:FindFirstChildOfClass("UIStroke") or Instance.new("UIStroke", f)
+			o.Color = colorOverride
+			o.Thickness = math.max(2, (stroke.w * self:pixelsPerUnit() / 1000) + (widthBoost or 0))
+		end
 		return
 	end
-	local color = Strokes.toColor3(stroke.c)
+	local color = colorOverride or Strokes.toColor3(stroke.c)
+	local w = stroke.w + (if widthBoost then widthBoost * 1000 / math.max(self:pixelsPerUnit(), 1) else 0)
 	local p = stroke.p
 	if #p == 2 then
-		self:drawSegment(into, color, stroke.w, p[1], p[2], p[1], p[2], z)
+		self:drawSegment(into, color, w, p[1], p[2], p[1], p[2], z)
 		return
 	end
 	for i = 1, #p - 3, 2 do
-		self:drawSegment(into, color, stroke.w, p[i], p[i + 1], p[i + 2], p[i + 3], z)
+		self:drawSegment(into, color, w, p[i], p[i + 1], p[i + 2], p[i + 3], z)
 	end
 end
 
@@ -180,9 +197,7 @@ function Canvas.render(self: Canvas)
 	self:renderSelection()
 end
 
-function Canvas.renderSelection(self: Canvas)
-	if self.selectionBox then self.selectionBox:Destroy() self.selectionBox = nil end
-	if #self.selection == 0 then return end
+function Canvas.selectionBounds(self: Canvas): (number, number, number, number)
 	local minX, minY, maxX, maxY = 1, 1, 0, 0
 	for _, idx in self.selection do
 		local s = self.strokes[idx]
@@ -191,20 +206,70 @@ function Canvas.renderSelection(self: Canvas)
 			minX, minY, maxX, maxY = math.min(minX, a), math.min(minY, b), math.max(maxX, c), math.max(maxY, d)
 		end
 	end
+	return minX, minY, maxX, maxY
+end
+
+function Canvas.renderSelection(self: Canvas)
+	if self.boxFrame then self.boxFrame:Destroy() self.boxFrame = nil end
+	self.handles = {}
+	if #self.selection == 0 then return end
+	local minX, minY, maxX, maxY = self:selectionBounds()
 	if maxX < minX then return end
-	self.selectionBox = Make("Frame", {
-		BackgroundColor3 = Theme.accent2,
-		BackgroundTransparency = 0.9,
-		Position = UDim2.new(minX, -6, minY, -6),
-		Size = UDim2.new(maxX - minX, 12, maxY - minY, 12),
+	local pad = 8
+	local box = Make("Frame", {
+		BackgroundColor3 = Theme.accent2, BackgroundTransparency = 0.92,
+		Position = UDim2.new(minX, -pad, minY, -pad), Size = UDim2.new(maxX - minX, pad * 2, maxY - minY, pad * 2),
 		ZIndex = 6,
-		Make("UIStroke", { Color = Theme.accent2, Thickness = 2, LineJoinMode = Enum.LineJoinMode.Round }),
+		Make("UIStroke", { Color = Theme.accent2, Thickness = 2 }),
 		Parent = self.overlay,
 	})
+	self.boxFrame = box
+	local positions = {
+		tl = Vector2.new(0, 0), t = Vector2.new(0.5, 0), tr = Vector2.new(1, 0), r = Vector2.new(1, 0.5),
+		br = Vector2.new(1, 1), b = Vector2.new(0.5, 1), bl = Vector2.new(0, 1), l = Vector2.new(0, 0.5),
+	}
+	for _, name in HANDLES do
+		local pos = positions[name]
+		local isCorner = #name == 2
+		local h = Make("TextButton", {
+			Text = "", AutoButtonColor = false,
+			BackgroundColor3 = if isCorner then Theme.accent2 else Theme.paper,
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(pos.X, pos.Y),
+			Size = UDim2.fromOffset(HANDLE_PX, HANDLE_PX),
+			ZIndex = 8,
+			Make.corner(UDim.new(0, if isCorner then 4 else 9)),
+			Make("UIStroke", { Color = Theme.accent2, Thickness = 2 }),
+			Parent = box,
+		})
+		self.handles[name] = h
+	end
+	-- Rotate handle above the top edge
+	local stem = Make("Frame", { BackgroundColor3 = Theme.accent2, AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.fromScale(0.5, 0), Size = UDim2.fromOffset(2, 26), ZIndex = 7, Parent = box })
+	local rot = Make("TextButton", {
+		Text = "↻", TextSize = 14, Font = Theme.font, TextColor3 = Theme.bg, AutoButtonColor = false,
+		BackgroundColor3 = Theme.accent, AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 0, -26),
+		Size = UDim2.fromOffset(HANDLE_PX + 6, HANDLE_PX + 6), ZIndex = 8,
+		Make.corner(UDim.new(0.5, 0)), Make("UIStroke", { Color = Theme.bg, Thickness = 1.5 }), Parent = box,
+	})
+	self.handles.rotate = rot
+	stem.Parent = box
+end
+
+function Canvas.setHover(self: Canvas, idx: number?)
+	if idx == self.hoverIdx then return end
+	self.hoverIdx = idx
+	if self.hoverFrame then self.hoverFrame:Destroy() self.hoverFrame = nil end
+	if not idx or table.find(self.selection, idx) then return end
+	local s = self.strokes[idx]
+	if not s then return end
+	local f = Make("Frame", { BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), ZIndex = 4, Parent = self.overlay })
+	self:renderStroke(s, f, 4, Theme.accent2, 6)
+	self.hoverFrame = f
 end
 
 ----------------------------------------------------------------------------
--- Data
+-- Data + ops
 
 function Canvas.setStrokes(self: Canvas, strokes: { Strokes.Stroke }?)
 	self.strokes = strokes or {}
@@ -212,34 +277,21 @@ function Canvas.setStrokes(self: Canvas, strokes: { Strokes.Stroke }?)
 	self:render()
 end
 
-function Canvas.getStrokes(self: Canvas): { Strokes.Stroke }
-	return self.strokes
-end
+function Canvas.getStrokes(self: Canvas): { Strokes.Stroke } return self.strokes end
 
 function Canvas.applyOp(self: Canvas, op: string, payload: any)
 	if op == "add" and payload then
 		table.insert(self.strokes, payload)
 		self:renderStroke(payload, self.layer)
 		self.frame.BackgroundColor3 = self:backgroundColor()
-	elseif op == "undo" then
-		table.remove(self.strokes)
-		self:render()
-	elseif op == "clear" then
-		self.strokes = {}
-		self:render()
-	elseif op == "set" and payload then
-		self.strokes = payload
-		self:render()
-	end
-end
-
-function Canvas.changed(self: Canvas)
-	if self.onChange then self.onChange() end
+	elseif op == "undo" then table.remove(self.strokes) self:render()
+	elseif op == "clear" then self.strokes = {} self:render()
+	elseif op == "set" and payload then self.strokes = payload self:render() end
 end
 
 function Canvas.emit(self: Canvas, op: string, payload: any?)
 	if self.onOp then self.onOp(op, payload) end
-	self:changed()
+	if self.onChange then self.onChange() end
 end
 
 function Canvas.commit(self: Canvas, stroke: Strokes.Stroke)
@@ -265,59 +317,66 @@ function Canvas.clear(self: Canvas)
 	self:emit("clear")
 end
 
--- Whole-canvas rewrite (after fill/transform).
 function Canvas.rewrite(self: Canvas)
 	self:render()
 	self:emit("set", self.strokes)
 end
 
 ----------------------------------------------------------------------------
--- Selection / transform
+-- Selection + transforms
 
 function Canvas.setSelection(self: Canvas, indices: { number })
 	self.selection = indices
+	self:setHover(nil)
 	self:renderSelection()
 	if self.onSelectionChanged then self.onSelectionChanged(#indices > 0) end
 end
 
-function Canvas.hasSelection(self: Canvas): boolean
-	return #self.selection > 0
+function Canvas.hasSelection(self: Canvas): boolean return #self.selection > 0 end
+
+function Canvas.selectAll(self: Canvas)
+	local all = {}
+	for i, s in self.strokes do if s.t ~= "bg" then table.insert(all, i) end end
+	self:setSelection(all)
 end
 
-function Canvas.selectionCenter(self: Canvas): (number, number)
-	local minX, minY, maxX, maxY = 1, 1, 0, 0
+function Canvas.forSelected(self: Canvas, fn: (Strokes.Stroke, number) -> Strokes.Stroke?)
 	for _, idx in self.selection do
 		local s = self.strokes[idx]
 		if s then
-			local a, b, c, d = Strokes.bounds(s)
-			minX, minY, maxX, maxY = math.min(minX, a), math.min(minY, b), math.max(maxX, c), math.max(maxY, d)
+			local replaced = fn(s, idx)
+			if replaced then self.strokes[idx] = replaced end
 		end
 	end
-	return (minX + maxX) / 2, (minY + maxY) / 2
+	self:rewrite()
 end
 
 function Canvas.scaleSelection(self: Canvas, k: number)
 	if #self.selection == 0 then return end
-	local cx, cy = self:selectionCenter()
-	for _, idx in self.selection do
-		local s = self.strokes[idx]
-		if s then Strokes.scaleAbout(s, cx, cy, k) end
-	end
-	self:rewrite()
+	local minX, minY, maxX, maxY = self:selectionBounds()
+	local cx, cy = (minX + maxX) / 2, (minY + maxY) / 2
+	self:forSelected(function(s) Strokes.scaleAbout(s, cx, cy, k) return nil end)
 end
 
-function Canvas.flipSelection(self: Canvas)
+function Canvas.flipSelection(self: Canvas, vertical: boolean?)
 	if #self.selection == 0 then return end
-	local cx = self:selectionCenter()
-	for _, idx in self.selection do
-		local s = self.strokes[idx]
-		if s then
-			for i = 1, #s.p - 1, 2 do
-				s.p[i] = math.clamp(2 * cx - s.p[i], 0, 1)
-			end
+	local minX, minY, maxX, maxY = self:selectionBounds()
+	local cx, cy = (minX + maxX) / 2, (minY + maxY) / 2
+	self:forSelected(function(s)
+		if vertical then
+			Strokes.mirrorY(s, cy)
+		else
+			for i = 1, #s.p - 1, 2 do s.p[i] = math.clamp(2 * cx - s.p[i], 0, 1) end
 		end
-	end
-	self:rewrite()
+		return nil
+	end)
+end
+
+function Canvas.rotateSelection(self: Canvas, radians: number)
+	if #self.selection == 0 then return end
+	local minX, minY, maxX, maxY = self:selectionBounds()
+	local cx, cy = (minX + maxX) / 2, (minY + maxY) / 2
+	self:forSelected(function(s) return Strokes.rotateAbout(s, cx, cy, radians) end)
 end
 
 function Canvas.deleteSelection(self: Canvas)
@@ -325,9 +384,7 @@ function Canvas.deleteSelection(self: Canvas)
 	local remove: { [number]: boolean } = {}
 	for _, idx in self.selection do remove[idx] = true end
 	local kept = {}
-	for i, s in self.strokes do
-		if not remove[i] then table.insert(kept, s) end
-	end
+	for i, s in self.strokes do if not remove[i] then table.insert(kept, s) end end
 	self.strokes = kept
 	self:setSelection({})
 	self:rewrite()
@@ -349,6 +406,14 @@ function Canvas.duplicateSelection(self: Canvas)
 	self:rewrite()
 end
 
+-- Warp mode: the next drag of a corner handle bends the selection instead of scaling it.
+function Canvas.beginWarpMode(self: Canvas)
+	if #self.selection == 0 then return end
+	self.gesture = "none"
+	self.handle = "warpmode"
+	for _, h in self.handles do h.BackgroundColor3 = Theme.pop end
+end
+
 function Canvas.pick(self: Canvas, x: number, y: number): number?
 	local best, bestD = nil, PICK_RADIUS
 	for i = #self.strokes, 1, -1 do
@@ -362,15 +427,29 @@ end
 
 function Canvas.selectionContains(self: Canvas, x: number, y: number): boolean
 	if #self.selection == 0 then return false end
-	local minX, minY, maxX, maxY = 1, 1, 0, 0
-	for _, idx in self.selection do
-		local s = self.strokes[idx]
-		if s then
-			local a, b, c, d = Strokes.bounds(s)
-			minX, minY, maxX, maxY = math.min(minX, a), math.min(minY, b), math.max(maxX, c), math.max(maxY, d)
+	local minX, minY, maxX, maxY = self:selectionBounds()
+	return x >= minX - 0.02 and x <= maxX + 0.02 and y >= minY - 0.02 and y <= maxY + 0.02
+end
+
+function Canvas.handleAt(self: Canvas, pos: Vector2): string?
+	for name, h in self.handles do
+		local p, s = h.AbsolutePosition, h.AbsoluteSize
+		if pos.X >= p.X - 6 and pos.X <= p.X + s.X + 6 and pos.Y >= p.Y - 6 and pos.Y <= p.Y + s.Y + 6 then
+			return name
 		end
 	end
-	return x >= minX - 0.02 and x <= maxX + 0.02 and y >= minY - 0.02 and y <= maxY + 0.02
+	return nil
+end
+
+function Canvas.takeSnapshot(self: Canvas)
+	local snap = {}
+	for _, idx in self.selection do
+		local s = self.strokes[idx]
+		snap[idx] = { t = s.t, c = table.clone(s.c), w = s.w, f = s.f, p = table.clone(s.p) }
+	end
+	self.snapshot = snap
+	local minX, minY, maxX, maxY = self:selectionBounds()
+	self.selBox = { minX, minY, maxX, maxY }
 end
 
 ----------------------------------------------------------------------------
@@ -381,16 +460,11 @@ function Canvas.fillAt(self: Canvas, x: number, y: number)
 	local color = Strokes.fromColor3(self.color)
 	if idx then
 		local s = self.strokes[idx]
-		if s.t == "r" or s.t == "c" then
-			s.f = true
-		end
+		if s.t == "r" or s.t == "c" then s.f = true end
 		s.c = color
 	else
-		-- Background: replace any previous background fill.
 		local kept = {}
-		for _, s in self.strokes do
-			if s.t ~= "bg" then table.insert(kept, s) end
-		end
+		for _, s in self.strokes do if s.t ~= "bg" then table.insert(kept, s) end end
 		table.insert(kept, 1, { t = "bg", c = color, w = Config.MIN_BRUSH, p = {} })
 		self.strokes = kept
 	end
@@ -398,11 +472,10 @@ function Canvas.fillAt(self: Canvas, x: number, y: number)
 end
 
 ----------------------------------------------------------------------------
--- Input
+-- Gestures
 
 function Canvas.toLocal(self: Canvas, pos: Vector2): (number, number)
-	local abs = self.frame.AbsolutePosition
-	local size = self.frame.AbsoluteSize
+	local abs, size = self.frame.AbsolutePosition, self.frame.AbsoluteSize
 	return math.clamp((pos.X - abs.X) / size.X, 0, 1), math.clamp((pos.Y - abs.Y) / size.Y, 0, 1)
 end
 
@@ -417,88 +490,192 @@ end
 
 function Canvas.beginGesture(self: Canvas, pos: Vector2)
 	local x, y = self:toLocal(pos)
-	self.dragging = true
 	self.startX, self.startY, self.lastX, self.lastY = x, y, x, y
 	self:clearPreview()
+
+	-- Transform handles take priority
+	if #self.selection > 0 then
+		local h = self:handleAt(pos)
+		if h then
+			self:takeSnapshot()
+			if h == "rotate" then
+				self.gesture = "rotate"
+			elseif self.handle == "warpmode" and #h == 2 then
+				self.gesture = "warp"
+				local b = self.selBox :: { number }
+				self.warpQuad = { b[1], b[2], b[3], b[2], b[3], b[4], b[1], b[4] }
+			else
+				self.gesture = "stretch"
+			end
+			self.handle = h
+			return
+		end
+		if self:selectionContains(x, y) then
+			self:takeSnapshot()
+			self.gesture = "move"
+			return
+		end
+	end
+
+	if self.tool == "fill" then
+		self.gesture = "none"
+		self:setSelection({})
+		self:fillAt(x, y)
+		return
+	end
+	-- Everything else starts as a pending press: a tap selects, a drag draws.
+	self.gesture = "pending"
+end
+
+function Canvas.startDrawing(self: Canvas)
 	local tool = self.tool
+	local x, y = self.startX, self.startY
 	if tool == "brush" or tool == "eraser" then
-		if #self.strokes >= Config.MAX_STROKES_PER_PANEL then self.dragging = false return end
+		if #self.strokes >= Config.MAX_STROKES_PER_PANEL then self.gesture = "none" return end
+		self.gesture = "draw"
 		self.current = { t = "p", c = Strokes.fromColor3(self:strokeColor()), w = self.width, p = { x, y } }
 		table.insert(self.preview, self:drawSegment(self.layer, self:strokeColor(), self.width, x, y, x, y))
 	elseif tool == "lasso" then
+		self.gesture = "lasso"
 		self.current = { t = "p", c = Strokes.fromColor3(Theme.accent2), w = 3, p = { x, y } }
-	elseif tool == "select" then
-		if not self:selectionContains(x, y) then
-			local idx = self:pick(x, y)
-			self:setSelection(if idx then { idx } else {})
-		end
-	elseif tool == "fill" then
-		self.dragging = false
-		self:fillAt(x, y)
+	elseif tool == "rect" or tool == "circle" then
+		self.gesture = "shape"
 	end
 end
 
 function Canvas.moveGesture(self: Canvas, pos: Vector2)
-	if not self.dragging then return end
 	local x, y = self:toLocal(pos)
-	local tool = self.tool
-	if tool == "brush" or tool == "eraser" or tool == "lasso" then
+	local g = self.gesture
+	if g == "none" then return end
+
+	if g == "pending" then
+		if math.abs(x - self.startX) < TAP_DIST and math.abs(y - self.startY) < TAP_DIST then return end
+		self:setSelection({})
+		self:startDrawing()
+		g = self.gesture
+		if g == "none" then return end
+	end
+
+	if g == "draw" or g == "lasso" then
 		local cur = self.current
 		if not cur or #cur.p >= Config.MAX_POINTS_PER_STROKE * 2 then return end
 		local lx, ly = cur.p[#cur.p - 1], cur.p[#cur.p]
 		if (x - lx) ^ 2 + (y - ly) ^ 2 < MIN_POINT_DIST ^ 2 then return end
 		table.insert(cur.p, x)
 		table.insert(cur.p, y)
-		local color = if tool == "lasso" then Theme.accent2 else self:strokeColor()
-		table.insert(self.preview, self:drawSegment(if tool == "lasso" then self.overlay else self.layer, color, cur.w, lx, ly, x, y, if tool == "lasso" then 7 else nil))
-	elseif tool == "rect" or tool == "circle" then
+		local color = if g == "lasso" then Theme.accent2 else self:strokeColor()
+		table.insert(self.preview, self:drawSegment(if g == "lasso" then self.overlay else self.layer, color, cur.w, lx, ly, x, y, if g == "lasso" then 7 else nil))
+	elseif g == "shape" then
 		self:clearPreview()
-		local shape = { t = if tool == "rect" then "r" else "c", c = Strokes.fromColor3(self.color), w = self.width, f = self.filled, p = { self.startX, self.startY, x, y } }
+		local shape = { t = if self.tool == "rect" then "r" else "c", c = Strokes.fromColor3(self.color), w = self.width, f = self.filled, p = { self.startX, self.startY, x, y } }
 		table.insert(self.preview, self:drawShape(self.overlay, shape, 7))
-	elseif tool == "select" and #self.selection > 0 then
-		local dx, dy = x - self.lastX, y - self.lastY
-		for _, idx in self.selection do
-			local s = self.strokes[idx]
-			if s then Strokes.translate(s, dx, dy) end
-		end
-		self:render()
+	elseif g == "move" then
+		local dx, dy = x - self.startX, y - self.startY
+		self:applyFromSnapshot(function(s) Strokes.translate(s, dx, dy) return s end)
+	elseif g == "stretch" then
+		self:applyStretch(x, y)
+	elseif g == "rotate" then
+		local b = self.selBox :: { number }
+		local cx, cy = (b[1] + b[3]) / 2, (b[2] + b[4]) / 2
+		local a0 = math.atan2(self.startY - cy, self.startX - cx)
+		local a1 = math.atan2(y - cy, x - cx)
+		local angle = a1 - a0
+		self:applyFromSnapshot(function(s) return Strokes.rotateAbout(s, cx, cy, angle) end)
+	elseif g == "warp" then
+		local q = self.warpQuad :: { number }
+		local map = { tl = 1, tr = 3, br = 5, bl = 7 }
+		local i = map[self.handle :: string]
+		if i then q[i], q[i + 1] = x, y end
+		local b = self.selBox :: { number }
+		self:applyFromSnapshot(function(s) return Strokes.warp(s, b, q) end)
 	end
 	self.lastX, self.lastY = x, y
 end
 
+-- Re-derive selected strokes from the gesture-start snapshot (so drags don't accumulate error).
+function Canvas.applyFromSnapshot(self: Canvas, fn: (Strokes.Stroke) -> Strokes.Stroke)
+	local snap = self.snapshot
+	if not snap then return end
+	for idx, original in snap do
+		local copy = { t = original.t, c = table.clone(original.c), w = original.w, f = original.f, p = table.clone(original.p) }
+		self.strokes[idx] = fn(copy)
+	end
+	self:render()
+end
+
+function Canvas.applyStretch(self: Canvas, x: number, y: number)
+	local b = self.selBox :: { number }
+	local h = self.handle :: string
+	local minX, minY, maxX, maxY = b[1], b[2], b[3], b[4]
+	local w, hgt = math.max(maxX - minX, 1e-4), math.max(maxY - minY, 1e-4)
+	-- anchor is the opposite side/corner
+	local ax = if h:find("l") then maxX elseif h:find("r") then minX else (minX + maxX) / 2
+	local ay = if h:find("t") then minY elseif h:find("b") then maxY else (minY + maxY) / 2
+	-- careful: "t" means top edge handle; "tl"/"tr" contain t. Anchor y for top handles is the bottom.
+	if h == "t" or h == "tl" or h == "tr" then ay = maxY end
+	if h == "b" or h == "bl" or h == "br" then ay = minY end
+	local kx, ky = 1, 1
+	if h:find("l") or h:find("r") then
+		kx = (x - ax) / ((if h:find("l") then minX else maxX) - ax)
+	end
+	if h == "t" or h == "tl" or h == "tr" or h == "b" or h == "bl" or h == "br" then
+		local edgeY = if (h == "t" or h == "tl" or h == "tr") then minY else maxY
+		ky = (y - ay) / (edgeY - ay)
+	end
+	if #h == 2 then
+		-- corners keep proportion
+		local k = math.max(math.abs(kx), math.abs(ky))
+		kx = if kx < 0 then -k else k
+		ky = if ky < 0 then -k else k
+	end
+	kx = math.clamp(kx, -8, 8)
+	ky = math.clamp(ky, -8, 8)
+	if math.abs(kx) < 0.05 then kx = 0.05 end
+	if math.abs(ky) < 0.05 then ky = 0.05 end
+	self:applyFromSnapshot(function(s)
+		Strokes.scaleXY(s, ax, ay, kx, ky)
+		return s
+	end)
+end
+
 function Canvas.endGesture(self: Canvas)
-	if not self.dragging then return end
-	self.dragging = false
-	local tool = self.tool
+	local g = self.gesture
+	self.gesture = "none"
 	local x, y = self.lastX, self.lastY
-	if tool == "brush" or tool == "eraser" then
+	if g == "pending" then
+		-- A tap: select what's under the finger (or deselect on empty paper).
+		local idx = self:pick(self.startX, self.startY)
+		self:setSelection(if idx then { idx } else {})
+		self.handle = nil
+	elseif g == "draw" then
 		local cur = self.current
 		self:clearPreview()
 		if cur then
 			self:commit(cur)
-			if self.mirror and tool ~= "eraser" then self:commit(Strokes.mirrorX(cur)) end
+			if self.mirror and self.tool ~= "eraser" then self:commit(Strokes.mirrorX(cur)) end
 		end
-	elseif tool == "rect" or tool == "circle" then
+	elseif g == "shape" then
 		self:clearPreview()
 		if math.abs(x - self.startX) > 0.01 and math.abs(y - self.startY) > 0.01 then
-			local shape = { t = if tool == "rect" then "r" else "c", c = Strokes.fromColor3(self.color), w = self.width, f = self.filled, p = { self.startX, self.startY, x, y } }
+			local shape = { t = if self.tool == "rect" then "r" else "c", c = Strokes.fromColor3(self.color), w = self.width, f = self.filled, p = { self.startX, self.startY, x, y } }
 			self:commit(shape)
 			if self.mirror then self:commit(Strokes.mirrorX(shape)) end
 		end
-	elseif tool == "lasso" then
+	elseif g == "lasso" then
 		self:clearPreview()
 		local cur = self.current
 		if cur and #cur.p >= 6 then
 			local sel = {}
-			for i, s in self.strokes do
-				if Strokes.insideLasso(s, cur.p) then table.insert(sel, i) end
-			end
+			for i, s in self.strokes do if Strokes.insideLasso(s, cur.p) then table.insert(sel, i) end end
 			self:setSelection(sel)
 		end
-	elseif tool == "select" and #self.selection > 0 then
-		if math.abs(x - self.startX) > 0.002 or math.abs(y - self.startY) > 0.002 then
-			self:rewrite()
-		end
+	elseif g == "move" or g == "stretch" or g == "rotate" or g == "warp" then
+		self.snapshot = nil
+		self.selBox = nil
+		self.warpQuad = nil
+		if g == "warp" then self.handle = nil end
+		self:renderSelection()
+		self:emit("set", self.strokes)
 	end
 	self.current = nil
 end
@@ -512,21 +689,30 @@ function Canvas.bindInput(self: Canvas)
 		if isDrawInput(input) then self:beginGesture(Vector2.new(input.Position.X, input.Position.Y)) end
 	end))
 	table.insert(self.connections, UserInputService.InputChanged:Connect(function(input)
-		if not self.dragging then return end
 		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-			self:moveGesture(Vector2.new(input.Position.X, input.Position.Y))
+			local pos = Vector2.new(input.Position.X, input.Position.Y)
+			if self.gesture ~= "none" then
+				self:moveGesture(pos)
+			elseif input.UserInputType == Enum.UserInputType.MouseMovement then
+				-- Hover highlight (mouse only)
+				local abs, size = self.frame.AbsolutePosition, self.frame.AbsoluteSize
+				if pos.X >= abs.X and pos.X <= abs.X + size.X and pos.Y >= abs.Y and pos.Y <= abs.Y + size.Y then
+					local x, y = self:toLocal(pos)
+					self:setHover(if self.tool == "fill" then nil else self:pick(x, y))
+				else
+					self:setHover(nil)
+				end
+			end
 		end
 	end))
 	table.insert(self.connections, UserInputService.InputEnded:Connect(function(input)
-		if isDrawInput(input) then self:endGesture() end
+		if isDrawInput(input) and self.gesture ~= "none" then self:endGesture() end
 	end))
 end
 
 function Canvas.setTool(self: Canvas, tool: Tool)
 	self.tool = tool
-	if tool ~= "select" and tool ~= "lasso" then
-		self:setSelection({})
-	end
+	self.handle = nil
 end
 
 function Canvas.destroy(self: Canvas)

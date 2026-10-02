@@ -16,6 +16,11 @@ local function Make(className: string, props: { [any]: any }): any
 		end
 	end
 	for _, child in children do
+		-- UIStroke defaults to Contextual, which outlines the letters of a text
+		-- object instead of its box and turns heavy fonts into scribbles.
+		if child:IsA("UIStroke") and (inst:IsA("TextLabel") or inst:IsA("TextButton") or inst:IsA("TextBox")) then
+			child.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		end
 		child.Parent = inst
 	end
 	if props.Parent then
@@ -151,6 +156,33 @@ function M.row(height: number, padding: number?, props: { [any]: any }?)
 	}
 	merge(p, props)
 	return Make("Frame", p)
+end
+
+-- Square icon button: image when the icon has an asset, short text otherwise.
+function M.iconButton(iconName: string, size: number, color: Color3, onClick: () -> (), props: { [any]: any }?)
+	local Icons = require(script.Parent.Icons)
+	local p = {
+		Size = UDim2.fromOffset(size, size),
+		TextSize = if #Icons.label(iconName) > 3 then 11 else 15,
+		Font = Theme.font,
+		TextColor3 = Theme.text,
+		Text = if Icons.has(iconName) then "" else Icons.label(iconName),
+	}
+	merge(p, props)
+	local b = M.button(p.Text, color, onClick, p)
+	if Icons.has(iconName) then
+		Make("ImageLabel", {
+			BackgroundTransparency = 1,
+			Image = Icons.image(iconName),
+			ImageColor3 = p.TextColor3,
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.fromScale(0.7, 0.7),
+			ZIndex = b.ZIndex + 1,
+			Parent = b,
+		})
+	end
+	return b
 end
 
 -- Pill-style toggle button used for tabs and segmented choices.

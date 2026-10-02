@@ -12,7 +12,7 @@ local STUDIO_SIZE = Vector3.new(40, 1, 40)
 local STUDIO_HEIGHT = 500 -- well above the hub
 local STUDIO_SPACING = 300 -- visual separation only; audio isolation is enforced by VoiceIsolation
 local GRID_COLUMNS = 8 -- studios are laid out in a grid so coordinates stay small with many matches
-local RETURN_POSITION = Vector3.new(0, 4, 19) -- the spawn pad, clear of the fountain
+local RETURN_POSITION = Vector3.new(0, 6, 18) -- just off the dais
 
 type Studio = { index: number, model: Model, floor: Part, inUse: boolean }
 local studios: { Studio } = {}

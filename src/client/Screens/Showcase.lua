@@ -59,7 +59,7 @@ function Showcase.show(container: Frame, data: any, ctx: any)
 		Net.remote:FireServer(Net.C2S.ShowcaseNext)
 	end, { Size = UDim2.new(1, 0, 0, 48), Visible = false, Parent = onAir })
 
-	local castBox = Make("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, Make.list(nil, 4), Parent = side })
+	local castBox = Make("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, Visible = false, Make.list(nil, 4), Parent = side })
 
 	-- Skip story (majority vote)
 	local skipVoted = false
@@ -109,8 +109,8 @@ function Showcase.show(container: Frame, data: any, ctx: any)
 			Size = UDim2.new(0.86, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, ZIndex = 11,
 			Make.corner(UDim.new(0, 14)), Make.pad(10),
 			Make("UIStroke", { Color = if live then Theme.accent else Color3.new(0, 0, 0), Thickness = if live then 4 else 2 }),
-			Make.label(("<b>%s:</b> %s%s"):format(line.character, line.text, if line.actorName then ("  <font color=\"#888888\" size=\"12\">🎤 %s</font>"):format(line.actorName) else ""), 16, {
-				RichText = true, TextColor3 = Color3.new(0, 0, 0), Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, ZIndex = 12,
+			Make.label(("<b>%s:</b> %s%s"):format(line.character, line.text, if line.actorName then ("  <font color=\"#888888\" size=\"14\">🎤 %s</font>"):format(line.actorName) else ""), 22, {
+				RichText = true, Font = Theme.fontHand, TextColor3 = Color3.new(0, 0, 0), Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, ZIndex = 12,
 			}),
 			Parent = bubbleLayer,
 		})
@@ -171,11 +171,13 @@ function Showcase.show(container: Frame, data: any, ctx: any)
 				titleBig.Text = sideTitle.Text
 				titleSub.Text = project.premise and project.premise.logline or ""
 				renderCast(project, titleCast, true)
-				renderCast(project, castBox, false)
 			end
+			castBox.Visible = false
 			setOnAir(nil, nil)
 		elseif frame.kind == "panel" then
 			titleCard.Visible = false
+			renderCast(project, castBox, false)
+			castBox.Visible = true
 			local panel = project.panels[frame.panel]
 			canvas:setStrokes(panel and panel.strokes or {})
 			local cap = project.captions[tostring(frame.panel)]
@@ -194,7 +196,7 @@ function Showcase.show(container: Frame, data: any, ctx: any)
 			titleBig.Text = project.premise and project.premise.title or "Untitled"
 			titleSub.Text = project.premise and project.premise.logline or ""
 			renderCast(project, titleCast, true)
-			renderCast(project, castBox, false)
+			castBox.Visible = false
 			setOnAir(nil, nil)
 		end
 	end

@@ -37,6 +37,7 @@ export type Round = typeof(setmetatable({} :: {
 	skipped: { [number]: boolean }, -- projectIndex -> was skipped in the showcase
 	live: { [number]: { [number]: { Strokes.Stroke } } }, -- userId -> panelOffset -> strokes drawn so far this phase
 	spectators: { Player },
+	teamOf: { [number]: number }, -- userId -> team index (VS Comic); empty otherwise
 }, Round))
 
 local AWARDS = {
@@ -61,7 +62,39 @@ local function now(): number
 	return workspace:GetServerTimeNow()
 end
 
-function Round.new(mode: Modes.Mode, players: { Player }): Round
+-- Deal players into balanced teams at random.
+function Round.randomTeams(players: { Player }): { [number]: number }
+	local n = #players
+	local teamCount = math.max(1, math.min(math.ceil(n / Config.TEAM_MAX), math.max(1, n // Config.TEAM_MIN)))
+	if n >= Config.TEAM_MIN * 2 then teamCount = math.max(2, teamCount) end
+	teamCount = math.min(teamCount, #Config.TEAM_COLORS)
+	local order = table.clone(players)
+	local rng = Random.new()
+	for i = #order, 2, -1 do
+		local j = rng:NextInteger(1, i)
+		order[i], order[j] = order[j], order[i]
+	end
+	local out = {}
+	for i, p in order do
+		out[p.UserId] = ((i - 1) % teamCount) + 1
+	end
+	return out
+end
+
+function Round.teamMembers(self: Round, team: number): { Player }
+	local out = {}
+	for _, p in self.players do
+		if self.teamOf[p.UserId] == team then table.insert(out, p) end
+	end
+	return out
+end
+
+function Round.teamName(team: number): string
+	local c = Config.TEAM_COLORS[team]
+	return if c then ("Team %s"):format(c.name) else ("Team %d"):format(team)
+end
+
+function Round.new(mode: Modes.Mode, players: { Player }, teams: { [number]: number }?): Round
 	local self = setmetatable({}, Round)
 	self.mode = mode
 	self.players = players
@@ -80,10 +113,24 @@ function Round.new(mode: Modes.Mode, players: { Player }): Round
 	self.skipped = {}
 	self.live = {}
 	self.spectators = {}
-	if mode.shared then
-		-- Co-op: one storyboard, directed by the first player.
-		self.projects[1] = Projects.new(1, players[1])
-		for _, player in players do self.scores[player.UserId] = 0 end
+	self.teamOf = {}
+	if mode.teams then
+		-- VS Comic: one storyboard per team, directed by its first member.
+		self.teamOf = teams or Round.randomTeams(players)
+		for _, player in players do
+			if not self.teamOf[player.UserId] then self.teamOf[player.UserId] = 1 end
+			self.scores[player.UserId] = 0
+		end
+		local maxTeam = 1
+		for _, t in self.teamOf do maxTeam = math.max(maxTeam, t) end
+		for t = 1, maxTeam do
+			local members = self:teamMembers(t)
+			if #members > 0 then
+				local project = Projects.new(t, members[1])
+				project.ownerName = Round.teamName(t)
+				self.projects[t] = project
+			end
+		end
 	else
 		for i, player in players do
 			self.projects[i] = Projects.new(i, player)
@@ -138,16 +185,20 @@ function Round.assignByOffset(self: Round, offset: number)
 	end
 end
 
--- Co-op: director alone for writing phases; everyone draws one panel of the shared story.
-function Round.assignShared(self: Round, phase: Modes.Phase)
+-- VS Comic: directors alone for writing phases; every teammate draws one panel of their team's story.
+function Round.assignTeams(self: Round, phase: Modes.Phase)
 	self.workers = {}
-	if phase.kind == "draw" then
-		for seat, player in self.players do
-			self.workers[player.UserId] = { player = player, projectIndex = 1, panelSlot = seat }
+	for t, project in self.projects do
+		local members = self:teamMembers(t)
+		if #members == 0 then continue end
+		if phase.kind == "draw" then
+			for slot, player in members do
+				self.workers[player.UserId] = { player = player, projectIndex = t, panelSlot = slot }
+			end
+		else
+			local director = Players:GetPlayerByUserId(project.ownerId) or members[1]
+			self.workers[director.UserId] = { player = director, projectIndex = t }
 		end
-	else
-		local director = self.players[1]
-		self.workers[director.UserId] = { player = director, projectIndex = 1 }
 	end
 end
 
@@ -188,7 +239,9 @@ function Round.payloadFor(self: Round, phase: Modes.Phase, worker: Worker)
 
 	if kind == "claim" then
 		local list = {}
+		local myTeam = self.teamOf[worker.player.UserId]
 		for i, p in self.projects do
+			if self.mode.teams and myTeam ~= i then continue end
 			table.insert(list, {
 				index = i,
 				ownerId = p.ownerId,
@@ -198,7 +251,7 @@ function Round.payloadFor(self: Round, phase: Modes.Phase, worker: Worker)
 				cast = p.cast,
 			})
 		end
-		return { projects = list, roles = self:rolesSnapshot(), maxRoles = 2, shared = self.mode.shared == true }
+		return { projects = list, roles = self:rolesSnapshot(), maxRoles = 2, shared = self.mode.teams == true, teamName = if myTeam then Round.teamName(myTeam) else nil }
 	elseif kind == "dub" and phase.roles then
 		local list = {}
 		for _, p in self.projects do
@@ -214,7 +267,8 @@ function Round.payloadFor(self: Round, phase: Modes.Phase, worker: Worker)
 
 	assert(project, "per-project phase without a project")
 	if kind == "scenes" then
-		return { projectIndex = project.index, premise = project.premise, cast = project.cast, count = #self.players }
+		local count = if self.mode.teams then #self:teamMembers(project.index) else #self.players
+		return { projectIndex = project.index, premise = project.premise, cast = project.cast, count = count }
 	elseif kind == "draw" and worker.panelSlot then
 		return {
 			projectIndex = project.index,
@@ -226,7 +280,7 @@ function Round.payloadFor(self: Round, phase: Modes.Phase, worker: Worker)
 			lines = {},
 			scene = project.scenes[worker.panelSlot],
 			ownerName = project.ownerName,
-			totalPanels = #self.players,
+			totalPanels = if self.mode.teams then #self:teamMembers(project.index) else #self.players,
 		}
 	end
 	if kind == "premise" then
@@ -272,8 +326,8 @@ function Round.runPhase(self: Round, phase: Modes.Phase)
 	elseif phase.kind == "dub" and phase.roles then
 		self:assignRoleHolders()
 		if next(self.workers) == nil then return end
-	elseif self.mode.shared then
-		self:assignShared(phase)
+	elseif self.mode.teams then
+		self:assignTeams(phase)
 	else
 		self:assignByOffset(phase.offset)
 	end
@@ -336,8 +390,9 @@ function Round.applyPhase(self: Round, phase: Modes.Phase)
 				roleCount[r.userId] = (roleCount[r.userId] or 0) + 1
 			end
 		end
-		for _, project in self.projects do
-			Projects.fillRoles(project, self.players, roleCount)
+		for t, project in self.projects do
+			local pool = if self.mode.teams then self:teamMembers(t) else self.players
+			Projects.fillRoles(project, pool, roleCount)
 		end
 		for userId in self.workers do
 			self.scores[userId] = (self.scores[userId] or 0) + Config.POINTS_FOR_SUBMITTING
@@ -377,7 +432,8 @@ function Round.applyPhase(self: Round, phase: Modes.Phase)
 			elseif phase.kind == "script" then
 				ok = Projects.applyLines(project, userId, data, "script", phase.panels or 3)
 			elseif phase.kind == "scenes" then
-				ok = Projects.applyScenes(project, userId, data, #self.players)
+				local count = if self.mode.teams then #self:teamMembers(project.index) else #self.players
+				ok = Projects.applyScenes(project, userId, data, count)
 			elseif phase.kind == "draw" then
 				-- Prefer the explicit submission; fall back to what streamed in live.
 				if typeof(data) ~= "table" then
@@ -423,8 +479,13 @@ function Round.onAction(self: Round, player: Player, action: string, data: any)
 		if not phase or phase.kind ~= "claim" or typeof(data) ~= "table" then return end
 		local project = self.projects[math.floor(tonumber(data.projectIndex) or 0)]
 		if not project or typeof(data.character) ~= "string" then return end
-		-- Don't voice your own story if anyone else is around (co-op is everyone's story).
-		if project.ownerId == player.UserId and #self.players > 1 and not self.mode.shared then return end
+		if self.mode.teams then
+			-- Only your own team's comic.
+			if self.teamOf[player.UserId] ~= project.index then return end
+		elseif project.ownerId == player.UserId and #self.players > 1 then
+			-- Don't voice your own story if anyone else is around.
+			return
+		end
 		-- Cap how many roles one person holds in a single project.
 		local mine = Projects.rolesOf(project, player.UserId)
 		local holding = table.find(mine, data.character) ~= nil
@@ -659,6 +720,16 @@ function Round.voteCandidates(self: Round): { number }
 	return out
 end
 
+-- Can this player vote for this project? Not their own story / their own team's comic.
+function Round.canVoteFor(self: Round, player: Player, projectIndex: number): boolean
+	local project = self.projects[projectIndex]
+	if not project or self.skipped[projectIndex] then return false end
+	if self.mode.teams then
+		return self.teamOf[player.UserId] ~= projectIndex
+	end
+	return project.ownerId ~= player.UserId
+end
+
 function Round.vote(self: Round)
 	self:pruneLeavers()
 	local candidates = self:voteCandidates()
@@ -678,11 +749,20 @@ function Round.vote(self: Round)
 			index = i,
 			title = if project.premise then project.premise.title else "Untitled",
 			ownerName = project.ownerName,
+			mine = false, -- filled per client below
+			teamColor = if self.mode.teams and Config.TEAM_COLORS[i] then Config.TEAM_COLORS[i] else nil,
 			actors = actors,
 			thumbnail = project.panels[1] and project.panels[1].strokes or {},
 		})
 	end
-	self:broadcast(Net.S2C.Vote, { awards = AWARDS, projects = summaries, endsAt = endsAt })
+	for _, player in self.players do
+		if not player.Parent then continue end
+		local mine = {}
+		for _, sm in summaries do
+			mine[tostring(sm.index)] = not self:canVoteFor(player, sm.index)
+		end
+		Net.remote:FireClient(player, Net.S2C.Vote, { awards = AWARDS, projects = summaries, mine = mine, endsAt = endsAt })
+	end
 
 	local votes: { [number]: { [string]: number } } = {}
 	local conn = Net.remote.OnServerEvent:Connect(function(player, action, data)
@@ -691,7 +771,7 @@ function Round.vote(self: Round)
 		local ballot: { [string]: number } = {}
 		for _, award in AWARDS do
 			local idx = tonumber(data[award.id])
-			if idx and self.projects[idx] and not self.skipped[idx] and self.projects[idx].ownerId ~= player.UserId then
+			if idx and self:canVoteFor(player, idx) then
 				ballot[award.id] = idx
 			end
 		end
@@ -727,7 +807,9 @@ function Round.vote(self: Round)
 			local project = self.projects[bestIdx]
 			winners[award.id] = { projectIndex = bestIdx, votes = bestCount, title = project.premise and project.premise.title or "Untitled" }
 			local recipients: { [number]: boolean } = {}
-			if award.id == "best_dub" then
+			if self.mode.teams then
+				for _, p in self:teamMembers(bestIdx) do recipients[p.UserId] = true end
+			elseif award.id == "best_dub" then
 				for _, r in project.roles do recipients[r.userId] = true end
 				if project.dubberId then recipients[project.dubberId] = true end
 			else

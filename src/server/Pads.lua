@@ -12,7 +12,7 @@ local Rooms = require(script.Parent.Rooms)
 
 local Pads = {}
 
-local PAD_SIZE = Vector3.new(16, 1, 16)
+local PAD_SIZE = Vector3.new(14, 1, 14)
 local PAD_COLORS = {
 	Color3.fromRGB(255, 196, 61),
 	Color3.fromRGB(94, 200, 255),
@@ -32,15 +32,15 @@ local function buildPad(index: number, position: Vector3): Pad
 	part.Position = position
 	part.Color = color
 	part.Material = Enum.Material.Neon
-	part.Transparency = 0.15
+	part.Transparency = 0.55 -- soft glow, players stay visible on it
 	part.TopSurface = Enum.SurfaceType.Smooth
 	part.Parent = workspace
 
 	-- Soft glow under the pad
 	local glow = Instance.new("PointLight")
 	glow.Color = color
-	glow.Range = 22
-	glow.Brightness = 0.9
+	glow.Range = 18
+	glow.Brightness = 0.6
 	glow.Parent = part
 
 	-- Corner posts so the pad reads as a stage
@@ -142,10 +142,11 @@ local function describe(room: any): string
 end
 
 function Pads.init()
-	local radius = 40
+	-- One pad in front of each gateway, inside the courtyard
+	local radius = 34
 	for i = 1, Config.PAD_COUNT do
 		local angle = (i - 1) / Config.PAD_COUNT * math.pi * 2
-		local pos = Vector3.new(math.cos(angle) * radius, 0.5, math.sin(angle) * radius)
+		local pos = Vector3.new(math.round(math.cos(angle)) * radius, 0.5, math.round(math.sin(angle)) * radius)
 		pads[i] = buildPad(i, pos)
 	end
 

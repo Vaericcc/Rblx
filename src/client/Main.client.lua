@@ -33,7 +33,13 @@ local Vote = require(Screens.Vote)
 local Results = require(Screens.Results)
 
 local player = Players.LocalPlayer
+if not player then
+	return -- e.g. the Studio server view: nothing to draw for
+end
 local playerGui = player:WaitForChild("PlayerGui")
+local Menu = require(UI.Menu)
+local Settings = require(UI.Settings)
+local UserInputService = game:GetService("UserInputService")
 
 -- The camera reports a tiny viewport for a moment at startup; measuring then
 -- would pick the phone layout on a desktop.
@@ -49,7 +55,11 @@ local gui = Make("ScreenGui", {
 	ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 	Parent = playerGui,
 })
-local scale = Make("UIScale", { Scale = Responsive.scale(), Parent = gui })
+local function uiScale(): number
+	return Responsive.scale() * (Settings.get("uiScale") or 1)
+end
+local scale = Make("UIScale", { Scale = uiScale(), Parent = gui })
+Settings.apply()
 
 local matchRoot = Make("Frame", {
 	BackgroundColor3 = Theme.bg,
@@ -66,9 +76,14 @@ local column = Make("Frame", {
 	AnchorPoint = Vector2.new(0.5, 0),
 	Position = UDim2.fromScale(0.5, 0),
 	Size = UDim2.fromScale(1, 1),
-	Make("UISizeConstraint", { MaxSize = Vector2.new(Responsive.MAX_CONTENT_WIDTH, math.huge) }),
 	Parent = matchRoot,
 })
+-- Cap the column in *unscaled* pixels so the cap shrinks with the UI scale and the side panel stays on screen.
+local columnCap = Make("UISizeConstraint", { MaxSize = Vector2.new(Responsive.MAX_CONTENT_WIDTH, math.huge), Parent = column })
+local function fitColumn()
+	local v = Responsive.viewport()
+	columnCap.MaxSize = Vector2.new(math.min(Responsive.MAX_CONTENT_WIDTH, v.X / uiScale()), math.huge)
+end
 
 local toast = Make.label("", 15, {
 	BackgroundColor3 = Theme.panelAlt,
@@ -106,47 +121,54 @@ local chromeCompact: boolean? = nil
 local lobbyState = { init = nil :: any, rooms = {} :: { any }, room = nil :: any, pad = nil :: any, members = nil :: any }
 local inMatch = false
 
--- In-match players menu: who's here, and Remove buttons for the host.
-local playersMenu: Frame? = nil
+-- In-match pause menu: resume, players (host can remove), settings, leave.
+local pauseMenu: Menu.Menu? = nil
 function togglePlayersMenu()
-	if playersMenu then
-		playersMenu:Destroy()
-		playersMenu = nil
+	if pauseMenu then
+		local m = pauseMenu
+		pauseMenu = nil
+		m:close()
 		return
 	end
-	local info = lobbyState.members
-	if not info then return end
-	local isHost = info.hostId == player.UserId
-	local menu = Make.card({
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.new(0, 360, 0, 0),
-		AutomaticSize = Enum.AutomaticSize.Y,
-		ZIndex = 60,
-		Make.list(nil, 6),
-		Make("UIStroke", { Color = Theme.panelAlt, Thickness = 1 }),
-		Parent = matchRoot,
-	})
-	playersMenu = menu
-	Make.heading("Players", 18, { ZIndex = 61, Parent = menu })
-	for _, m in info.members do
-		local row = Make("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 32), ZIndex = 61, Parent = menu })
-		local tag = if m.userId == info.hostId then "  👑" elseif m.userId == player.UserId then "  (you)" else ""
-		Make.label(m.name .. tag, 15, { Size = UDim2.new(1, -100, 1, 0), TextYAlignment = Enum.TextYAlignment.Center, ZIndex = 62, Parent = row })
-		if isHost and m.userId ~= player.UserId then
-			Make.button("Remove", Theme.panelAlt, function()
-				Net.remote:FireServer(Net.C2S.KickPlayer, m.userId)
+	local m: Menu.Menu
+	m = Menu.open({
+		title = "PAUSED",
+		parent = gui,
+		items = {
+			{ id = "resume", label = "RESUME", onClick = function() togglePlayersMenu() end },
+			{ id = "players", label = "PLAYERS", onClick = function()
+				m:clearContent()
+				local body = m:content()
+				local info = lobbyState.members or { members = {} }
+				local isHost = info.hostId == player.UserId
+				Menu.heading(body, "PLAYERS")
+				for _, mem in info.members do
+					local row = Make("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 34), ZIndex = 306, Parent = body })
+					local tag = if mem.userId == info.hostId then "  👑" elseif mem.userId == player.UserId then "  (you)" else ""
+					Make.label(mem.name .. tag, 16, { Font = Theme.fontBody, TextColor3 = Theme.ink, Size = UDim2.new(1, -110, 1, 0), TextYAlignment = Enum.TextYAlignment.Center, ZIndex = 306, Parent = row })
+					if isHost and mem.userId ~= player.UserId then
+						Menu.button(row, "REMOVE", Theme.cream, function()
+							Net.remote:FireServer(Net.C2S.KickPlayer, mem.userId)
+						end, { Size = UDim2.fromOffset(100, 28), TextSize = 14, AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, 0, 0.5, 0) })
+					end
+				end
+				if not isHost then Menu.text(body, "Only the host can remove players.", 13, true) end
+			end },
+			{ id = "settings", label = "SETTINGS", onClick = function()
+				m:settingsPage(function() scale.Scale = uiScale() end)
+			end },
+			{ id = "leave", label = "LEAVE MATCH", accent = true, onClick = function()
+				Net.remote:FireServer(Net.C2S.LeaveRoom)
 				togglePlayersMenu()
-			end, { Size = UDim2.fromOffset(90, 28), TextSize = 12, TextColor3 = Theme.danger, AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, 0, 0.5, 0), ZIndex = 62, Parent = row })
-		end
-	end
-	if not isHost then
-		Make.label("Only the host can remove players.", 12, { TextColor3 = Theme.textDim, ZIndex = 61, Parent = menu })
-	end
-	Make.button("Close", Theme.panelAlt, function() togglePlayersMenu() end, { Size = UDim2.new(1, 0, 0, 36), TextSize = 14, TextColor3 = Theme.text, ZIndex = 61, Parent = menu })
+			end },
+		},
+		onClose = function() pauseMenu = nil end,
+	})
+	pauseMenu = m
 end
 
 local function buildChrome()
+fitColumn()
 	local compact = Responsive.isCompact()
 	chromeCompact = compact
 	if hud then hud:destroy() end
@@ -171,6 +193,7 @@ local function buildChrome()
 	})
 
 	lobby = Lobby.new(gui)
+	lobby.onUiScale = function() scale.Scale = uiScale() end
 	if lobbyState.init then lobby:setInit(lobbyState.init) end
 	lobby:setRooms(lobbyState.rooms)
 	lobby:setRoom(lobbyState.room)
@@ -361,7 +384,7 @@ local handlers: { [string]: (any) -> () } = {
 	[Net.S2C.Vote] = function(data) mount(Vote.show, data, data.endsAt) end,
 	[Net.S2C.Results] = function(data) mount(Results.show, data, nil) end,
 	[Net.S2C.MatchEnd] = function()
-		if playersMenu then playersMenu:Destroy() playersMenu = nil end
+		if pauseMenu then togglePlayersMenu() end
 		unmount()
 		setInMatch(false)
 	end,
@@ -380,9 +403,18 @@ Net.remote:FireServer(Net.C2S.Hello)
 -- Phase screens keep their layout until the next phase so nobody loses typed text.
 Responsive.onChanged(function()
 	if not Responsive.ready() then return end
-	scale.Scale = Responsive.scale()
+	scale.Scale = uiScale()
+	fitColumn()
 	if Responsive.isCompact() ~= chromeCompact and not current then
 		buildChrome()
+	end
+end)
+
+-- Esc / Start opens the pause menu during a match.
+UserInputService.InputBegan:Connect(function(input, processed)
+	if processed then return end
+	if inMatch and (input.KeyCode == Enum.KeyCode.Escape or input.KeyCode == Enum.KeyCode.ButtonStart or input.KeyCode == Enum.KeyCode.P) then
+		togglePlayersMenu()
 	end
 end)
 

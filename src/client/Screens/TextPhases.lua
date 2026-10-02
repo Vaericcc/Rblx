@@ -93,8 +93,9 @@ function TextPhases.lineEditor(parent: Instance, panelIndex: number, castNames: 
 		local who: any
 		if #castNames > 0 then
 			local idx = ((#rows) % #castNames) + 1
-			local btn = Make.button(castNames[idx], Theme.panelAlt, function() end, {
-				Size = UDim2.new(0.32, -6, 1, 0), TextSize = 13, TextColor3 = Theme.text, TextTruncate = Enum.TextTruncate.AtEnd,
+			local btn = Make.button(castNames[idx], Theme.bg, function() end, {
+				Size = UDim2.new(0.32, -6, 1, 0), TextSize = 13, TextColor3 = Theme.accent, TextTruncate = Enum.TextTruncate.AtEnd,
+				Make("UIStroke", { Color = Theme.accent, Thickness = 1.5, Transparency = 0.4 }),
 			})
 			btn.Activated:Connect(function()
 				idx = (idx % #castNames) + 1
@@ -104,11 +105,12 @@ function TextPhases.lineEditor(parent: Instance, panelIndex: number, castNames: 
 			btn.Parent = row
 			who = btn
 		else
-			who = Make.input("Who?", Config.MAX_CHAR_NAME_LEN, { Size = UDim2.new(0.32, -6, 1, 0), TextSize = 14, Parent = row })
+			who = Make.input("Who?", Config.MAX_CHAR_NAME_LEN, { Size = UDim2.new(0.32, -6, 1, 0), TextSize = 14, BackgroundColor3 = Theme.bg, Parent = row })
 			watch(who, ctx)
 		end
 		local text = Make.input("Says...", Config.MAX_LINE_LEN, {
-			Size = UDim2.new(0.68, 0, 1, 0), Position = UDim2.new(0.32, 0, 0, 0), TextSize = 15, Parent = row,
+			Size = UDim2.new(0.68, 0, 1, 0), Position = UDim2.new(0.32, 0, 0, 0), TextSize = 15, BackgroundColor3 = Theme.bg,
+			Make("UIStroke", { Color = Theme.textDim, Thickness = 1, Transparency = 0.5 }), Parent = row,
 		})
 		watch(text, ctx)
 		table.insert(rows, { who = who, text = text })

@@ -17,6 +17,16 @@ local Config = {
 	PRIVATE_MATCH_SERVERS = not RunService:IsStudio(),
 	MATCH_SERVER_GATHER_SECONDS = 25, -- how long a match server waits for the party to arrive
 
+	-- Teams (VS Comic)
+	TEAM_MIN = 2,
+	TEAM_MAX = 5,
+	TEAM_COLORS = {
+		{ name = "Red", r = 255, g = 92, b = 92 },
+		{ name = "Blue", r = 94, g = 160, b = 255 },
+		{ name = "Green", r = 96, g = 220, b = 140 },
+		{ name = "Yellow", r = 255, g = 196, b = 61 },
+	},
+
 	-- Persistent points and Pro rooms
 	POINTS_DATASTORE = "StoryDubPoints_v1",
 	PRO_POINTS = 10000, -- points needed to create or join a Pro room

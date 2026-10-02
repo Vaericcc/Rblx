@@ -21,6 +21,7 @@ local MatchServer = {}
 local round: Round.Round? = nil
 local expected: { [number]: boolean } = {}
 local modeId: string? = nil
+local teams: { [number]: number } = {}
 local started = false
 
 local function teleportData(player: Player): any
@@ -66,7 +67,7 @@ local function run()
 	if #players < 1 then return end
 
 	broadcast(Net.S2C.Teleporting, nil) -- clears the gathering screen
-	local r = Round.new(mode, players)
+	local r = Round.new(mode, players, if mode.teams and next(teams) then teams else nil)
 	round = r
 	local ok, err = pcall(function()
 		r:broadcast(Net.S2C.Toast, ("%s - %s"):format(mode.name, mode.tagline))
@@ -126,6 +127,13 @@ function MatchServer.init()
 			if typeof(data.memberIds) == "table" then
 				for _, id in data.memberIds do
 					if typeof(id) == "number" then expected[id] = true end
+				end
+			end
+			if typeof(data.teams) == "table" then
+				for _, entry in data.teams do
+					if typeof(entry) == "table" and typeof(entry.userId) == "number" and typeof(entry.team) == "number" then
+						teams[entry.userId] = entry.team
+					end
 				end
 			end
 		end
