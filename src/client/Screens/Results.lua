@@ -12,6 +12,11 @@ function Results.show(container: Frame, data: any, ctx: any)
 
 	local awards = Make.card({ Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, Make.list(nil, 8), Parent = root })
 	Make.heading("Awards", 22, { Parent = awards })
+	if next(data.winners) == nil then
+		Make.label("No awards this round: you need at least two stories and two players to vote.", 14, {
+			TextColor3 = Theme.textDim, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, Parent = awards,
+		})
+	end
 	for _, award in data.awards do
 		local w = data.winners[award.id]
 		local text = if w

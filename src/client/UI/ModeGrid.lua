@@ -17,18 +17,21 @@ export type Opts = {
 
 function ModeGrid.build(parent: Instance, opts: Opts): Frame
 	local compact = Responsive.isCompact()
+	local CARD_H, GAP = 140, 12
+	local rows = math.ceil(#opts.modes / 2)
 	local grid = Make("Frame", {
 		BackgroundTransparency = 1,
-		Size = UDim2.new(1, 0, 0, 0),
-		AutomaticSize = Enum.AutomaticSize.Y,
+		-- UIGridLayout does not drive AutomaticSize reliably, so size the grid explicitly.
+		Size = UDim2.new(1, 0, 0, if compact then 0 else rows * CARD_H + (rows - 1) * GAP),
+		AutomaticSize = if compact then Enum.AutomaticSize.Y else Enum.AutomaticSize.None,
 		Parent = parent,
 	})
 	if compact then
 		Make.list(nil, 8).Parent = grid
 	else
 		Make("UIGridLayout", {
-			CellSize = UDim2.new(0.5, -8, 0, 140),
-			CellPadding = UDim2.new(0, 16, 0, 12),
+			CellSize = UDim2.new(0.5, -8, 0, CARD_H),
+			CellPadding = UDim2.new(0, 16, 0, GAP),
 			SortOrder = Enum.SortOrder.LayoutOrder,
 			Parent = grid,
 		})
@@ -39,16 +42,25 @@ function ModeGrid.build(parent: Instance, opts: Opts): Frame
 		local locked = opts.playerCount < mode.minPlayers
 		local selected = opts.myVote == mode.id
 		local likely = opts.likelyModeId == mode.id
-		local card = Make.card({
+		-- The card itself is the button so every pixel of it is clickable.
+		local card = Make("TextButton", {
+			Text = "",
+			AutoButtonColor = not locked,
 			LayoutOrder = i,
-			Size = UDim2.new(1, 0, 0, if compact then 0 else 140),
+			Size = UDim2.new(1, 0, 0, if compact then 0 else CARD_H),
 			AutomaticSize = if compact then Enum.AutomaticSize.Y else Enum.AutomaticSize.None,
 			BackgroundColor3 = if selected then Theme.panelAlt else Theme.panel,
 			BackgroundTransparency = if locked then 0.4 else 0,
+			BorderSizePixel = 0,
+			Make.corner(),
+			Make.pad(14),
 			Make.list(nil, 3),
 			Make("UIStroke", { Color = if selected then Theme.accent else Theme.accent2, Thickness = if selected then 2 elseif likely then 1 else 0 }),
 			Parent = grid,
 		})
+		card.Activated:Connect(function()
+			if not locked then opts.onVote(mode.id) end
+		end)
 		local header = ("%s%s"):format(mode.name, if votes > 0 then ("  <font color=\"#ffc43d\">· %d</font>"):format(votes) else "")
 		if likely and not selected then
 			header ..= "  <font color=\"#5ec8ff\" size=\"12\">LEADING</font>"
@@ -59,17 +71,6 @@ function ModeGrid.build(parent: Instance, opts: Opts): Frame
 		if locked then
 			Make.label(("Needs %d players"):format(mode.minPlayers), 12, { TextColor3 = Theme.danger, Size = UDim2.new(1, 0, 0, 14), Parent = card })
 		end
-		local hit = Make("TextButton", {
-			BackgroundTransparency = 1,
-			Text = "",
-			Size = UDim2.new(1, 28, 1, 28),
-			Position = UDim2.fromOffset(-14, -14),
-			ZIndex = 5,
-			Parent = card,
-		})
-		hit.Activated:Connect(function()
-			if not locked then opts.onVote(mode.id) end
-		end)
 	end
 	return grid
 end

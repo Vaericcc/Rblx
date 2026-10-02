@@ -89,7 +89,7 @@ exactly one story per player.
 ## Project layout
 
 ```
-default.project.json         Rojo tree (Workspace floor, Shared, Server, Client)
+default.project.json         Rojo tree (spawn, lighting, Shared, Server, Client)
 src/shared/
   Config.lua                 Timers, limits, scoring
   Modes.lua                  Mode definitions (data only)
@@ -99,6 +99,7 @@ src/shared/
 src/server/
   Main.server.lua            Routes client messages, builds the hub, refreshes room lists
   Rooms.lua                  Matchmaking: UI rooms (public / friends only) and pad rooms; runs a Round per room
+  Hub.lua                    Procedural hub: plaza island, fountain, lamps, trees, lighting
   Pads.lua                   Builds the platforms and scans who is standing on them
   Round.lua                  Phase runner, assignment, showcase, voting, scoring
   Projects.lua               Storyboard state and all untrusted-input handling

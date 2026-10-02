@@ -32,8 +32,34 @@ local function buildPad(index: number, position: Vector3): Pad
 	part.Position = position
 	part.Color = color
 	part.Material = Enum.Material.Neon
+	part.Transparency = 0.15
 	part.TopSurface = Enum.SurfaceType.Smooth
 	part.Parent = workspace
+
+	-- Soft glow under the pad
+	local glow = Instance.new("PointLight")
+	glow.Color = color
+	glow.Range = 22
+	glow.Brightness = 0.9
+	glow.Parent = part
+
+	-- Corner posts so the pad reads as a stage
+	for _, corner in { Vector2.new(1, 1), Vector2.new(1, -1), Vector2.new(-1, 1), Vector2.new(-1, -1) } do
+		local post = Instance.new("Part")
+		post.Anchored = true
+		post.Size = Vector3.new(0.6, 3, 0.6)
+		post.Position = position + Vector3.new(corner.X * (PAD_SIZE.X / 2 + 0.6), 1.5, corner.Y * (PAD_SIZE.Z / 2 + 0.6))
+		post.Color = Color3.fromRGB(40, 40, 52)
+		post.Material = Enum.Material.Metal
+		post.Parent = part
+		local tip = Instance.new("Part")
+		tip.Anchored = true
+		tip.Size = Vector3.new(0.7, 0.3, 0.7)
+		tip.Position = post.Position + Vector3.new(0, 1.65, 0)
+		tip.Color = color
+		tip.Material = Enum.Material.Neon
+		tip.Parent = part
+	end
 
 	local rim = Instance.new("Part")
 	rim.Name = "Rim"
@@ -41,7 +67,7 @@ local function buildPad(index: number, position: Vector3): Pad
 	rim.Size = PAD_SIZE + Vector3.new(2, -0.4, 2)
 	rim.Position = position - Vector3.new(0, 0.2, 0)
 	rim.Color = Color3.fromRGB(40, 40, 52)
-	rim.Material = Enum.Material.SmoothPlastic
+	rim.Material = Enum.Material.Slate
 	rim.Parent = part
 
 	local billboard = Instance.new("BillboardGui")
@@ -116,7 +142,7 @@ local function describe(room: any): string
 end
 
 function Pads.init()
-	local radius = 34
+	local radius = 40
 	for i = 1, Config.PAD_COUNT do
 		local angle = (i - 1) / Config.PAD_COUNT * math.pi * 2
 		local pos = Vector3.new(math.cos(angle) * radius, 0.5, math.sin(angle) * radius)

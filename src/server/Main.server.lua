@@ -8,6 +8,7 @@ local Modes = require(Shared.Modes)
 local Net = require(Shared.Net)
 local Rooms = require(script.Parent.Rooms)
 local Pads = require(script.Parent.Pads)
+local Hub = require(script.Parent.Hub)
 
 local function modeList()
 	local list = {}
@@ -85,6 +86,7 @@ end)
 
 Players.PlayerRemoving:Connect(Rooms.onPlayerRemoving)
 
+Hub.build()
 Pads.init()
 
 -- Periodic refresh so the room browser never goes stale.

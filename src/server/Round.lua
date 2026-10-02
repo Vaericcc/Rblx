@@ -32,6 +32,7 @@ export type Round = typeof(setmetatable({} :: {
 	showingProject: number?,
 	skipStoryVotes: { [number]: boolean },
 	skipStory: boolean,
+	skipped: { [number]: boolean }, -- projectIndex -> was skipped in the showcase
 }, Round))
 
 local AWARDS = {
@@ -71,6 +72,7 @@ function Round.new(mode: Modes.Mode, players: { Player }): Round
 	self.showingProject = nil
 	self.skipStoryVotes = {}
 	self.skipStory = false
+	self.skipped = {}
 	for i, player in players do
 		self.projects[i] = Projects.new(i, player)
 		self.scores[player.UserId] = 0
@@ -522,6 +524,7 @@ function Round.showcase(self: Round)
 			end
 		end
 		if self.skipStory then
+			self.skipped[projectIndex] = true
 			self:broadcast(Net.S2C.Toast, "Story skipped.")
 			task.wait(0.8)
 		end
@@ -532,22 +535,37 @@ end
 ----------------------------------------------------------------------------
 -- Voting and results
 
+-- Stories that actually played and can be voted on.
+function Round.voteCandidates(self: Round): { number }
+	local out = {}
+	for i in self.projects do
+		if not self.skipped[i] then table.insert(out, i) end
+	end
+	return out
+end
+
 function Round.vote(self: Round)
 	self:pruneLeavers()
+	local candidates = self:voteCandidates()
+	-- Nothing to choose between: one story, or nobody else to vote for yours.
+	if #candidates < 2 or #self.players < 2 then
+		return {}
+	end
 	local endsAt = now() + Config.VOTE_SECONDS
 	local summaries = {}
-	for i, project in self.projects do
+	for _, i in candidates do
+		local project = self.projects[i]
 		local actors = {}
 		for _, r in project.roles do
 			if not table.find(actors, r.name) then table.insert(actors, r.name) end
 		end
-		summaries[i] = {
+		table.insert(summaries, {
 			index = i,
 			title = if project.premise then project.premise.title else "Untitled",
 			ownerName = project.ownerName,
 			actors = actors,
 			thumbnail = project.panels[1] and project.panels[1].strokes or {},
-		}
+		})
 	end
 	self:broadcast(Net.S2C.Vote, { awards = AWARDS, projects = summaries, endsAt = endsAt })
 
@@ -558,7 +576,7 @@ function Round.vote(self: Round)
 		local ballot: { [string]: number } = {}
 		for _, award in AWARDS do
 			local idx = tonumber(data[award.id])
-			if idx and self.projects[idx] and self.projects[idx].ownerId ~= player.UserId then
+			if idx and self.projects[idx] and not self.skipped[idx] and self.projects[idx].ownerId ~= player.UserId then
 				ballot[award.id] = idx
 			end
 		end
