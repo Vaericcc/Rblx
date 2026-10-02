@@ -6,6 +6,7 @@
 	Every room runs its own Round, so many matches run at the same time.
 ]]
 local Players = game:GetService("Players")
+local VoiceChatService = game:GetService("VoiceChatService")
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local Config = require(Shared.Config)
@@ -48,6 +49,32 @@ end
 
 local function now(): number
 	return workspace:GetServerTimeNow()
+end
+
+-- Voice chat eligibility, cached per player for the session.
+local voiceCache: { [number]: boolean } = {}
+local voiceWarnedAt: { [number]: number } = {}
+function Rooms.hasVoice(player: Player): boolean
+	if not Config.VOICE_REQUIRED then return true end
+	local cached = voiceCache[player.UserId]
+	if cached ~= nil then return cached end
+	local ok, result = pcall(function()
+		return VoiceChatService:IsVoiceEnabledForUserIdAsync(player.UserId)
+	end)
+	local value = ok and result == true
+	voiceCache[player.UserId] = value
+	return value
+end
+
+Rooms.VOICE_MESSAGE = "StoryDub is played with voice chat. Turn on voice chat in your Roblox settings, then rejoin."
+
+local function warnNoVoice(player: Player)
+	local last = voiceWarnedAt[player.UserId] or 0
+	if now() - last < 10 then return end
+	voiceWarnedAt[player.UserId] = now()
+	if player.Parent then
+		Net.remote:FireClient(player, Net.S2C.Toast, Rooms.VOICE_MESSAGE)
+	end
 end
 
 local function fire(player: Player, action: string, data: any)
@@ -206,6 +233,10 @@ local function destroyRoom(room: Room)
 end
 
 function Rooms.create(host: Player, visibility: string): Room?
+	if not Rooms.hasVoice(host) then
+		warnNoVoice(host)
+		return nil
+	end
 	if roomOf[host.UserId] then
 		fire(host, Net.S2C.Toast, "Leave your current room first.")
 		return nil
@@ -222,6 +253,10 @@ function Rooms.join(player: Player, roomId: any)
 	local room = rooms[tostring(roomId)]
 	if not room or room.kind ~= "ui" then
 		fire(player, Net.S2C.Toast, "That room no longer exists.")
+		return
+	end
+	if not Rooms.hasVoice(player) then
+		warnNoVoice(player)
 		return
 	end
 	if roomOf[player.UserId] then
@@ -316,8 +351,12 @@ function Rooms.syncPad(padIndex: number, standing: { Player }): Room?
 	end
 
 	local changed = false
-	-- Add newcomers who aren't in any room
+	-- Add newcomers who aren't in any room (and have voice chat)
 	for _, p in standing do
+		if not roomOf[p.UserId] and not Rooms.hasVoice(p) then
+			warnNoVoice(p)
+			continue
+		end
 		if not roomOf[p.UserId] and #room.members < Config.MAX_PLAYERS then
 			addMember(room, p)
 			changed = true

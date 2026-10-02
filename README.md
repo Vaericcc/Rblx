@@ -63,9 +63,14 @@ Right after the cast is written, everyone claims the characters they want to voi
 two per story, never your own story). Unclaimed roles are handed out automatically. During
 the dub phase you write lines only for your characters, and in the showcase you perform them.
 
-Roblox does not allow experiences to record the microphone, so dubbing is always live over
-Roblox voice chat. Enable Voice Chat in Game Settings → Communication. If voice chat isn't
-available for a player, their lines still appear as speech bubbles for everyone to read.
+StoryDub is a **voice chat game**. Roblox does not allow experiences to record the microphone,
+so dubbing is always live over Roblox voice chat, and players without voice chat enabled
+cannot create or join rooms or form a platform match (the lobby tells them why). Enable
+Voice Chat in Game Settings → Communication. Speech bubbles stay on screen as subtitles.
+Studio solo testing is exempt from the voice requirement because voice doesn't run there.
+
+Every player draws in every mode: each player owns one story and every draw phase assigns
+exactly one story per player.
 4. **Vote.** Four awards: Funniest, Best Art, Best Dub, Plot Twist. You can't pick your own story.
 5. **Results.** Award winners and a leaderboard. Points go to everyone who contributed to a
    winning story (Best Dub goes to the dubber alone).

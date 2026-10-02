@@ -69,9 +69,9 @@ function Mic.new(parent: Instance): Mic
 		self.button.Visible = false
 		meterBg.Visible = false
 		if voiceEnabled() then
-			self.status.Text = "Voice chat is on. Use the microphone icon in the top bar to unmute, then read your line."
+			self.status.Text = "Use the microphone icon in the Roblox top bar to unmute, then read your line out loud."
 		else
-			self.status.Text = "Voice chat isn't available here, so your line shows as text. Everyone can still read it."
+			self.status.Text = "Voice chat is off for you. Turn it on in Roblox settings to perform; your line is shown as text meanwhile."
 		end
 		return self
 	end

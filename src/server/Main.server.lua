@@ -31,7 +31,10 @@ local LOBBY_INIT = {
 
 local handlers: { [string]: (Player, any) -> () } = {
 	[Net.C2S.Hello] = function(player)
-		Net.remote:FireClient(player, Net.S2C.LobbyInit, LOBBY_INIT)
+		local init = table.clone(LOBBY_INIT)
+		init.voiceEnabled = Rooms.hasVoice(player)
+		init.voiceMessage = Rooms.VOICE_MESSAGE
+		Net.remote:FireClient(player, Net.S2C.LobbyInit, init)
 		local room = Rooms.roomOf(player)
 		if room then
 			Net.remote:FireClient(player, Net.S2C.RoomState, Rooms.serialize(room))

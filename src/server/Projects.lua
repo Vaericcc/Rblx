@@ -131,7 +131,7 @@ function Projects.applyLines(project: Project, userId: number, data: any, source
 		castNames[c.name] = true
 	end
 	local added = 0
-	for i = 1, math.min(#data, maxPanel * 4) do
+	for i = 1, math.min(#data, maxPanel * 8) do
 		local l = data[i]
 		if typeof(l) ~= "table" then continue end
 		local panel = math.floor(tonumber(l.panel) or 0)

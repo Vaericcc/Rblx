@@ -80,7 +80,7 @@ function Dub.show(container: Frame, data: any, ctx: any)
 			Make.label(("🎤 You voice <b>%s</b>"):format(table.concat(speakers, "</b> and <b>")), 15, {
 				RichText = true, TextColor3 = Theme.accent, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, Parent = who,
 			})
-			Make.label("Write a line for each panel where your character has something to say. Leave a panel blank to stay quiet.", 13, {
+			Make.label("Write what your character says in each panel. Add as many lines as you like; leave a panel blank to stay quiet.", 13, {
 				TextColor3 = Theme.textDim, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, Parent = who,
 			})
 			local info = StoryInfo.build(group, { premise = project.premise, cast = project.cast, roles = project.roles, ownerName = project.ownerName })
@@ -90,7 +90,7 @@ function Dub.show(container: Frame, data: any, ctx: any)
 
 		editors[s] = {}
 		for i = 1, #project.panels do
-			local editor = TextPhases.lineEditor(group, i, speakers, ctx, 2)
+			local editor = TextPhases.lineEditor(group, i, speakers, ctx, 5)
 			editors[s][i] = editor
 			local hit = Make("TextButton", { BackgroundTransparency = 1, Text = "", Size = UDim2.new(1, 0, 0, 24), Position = UDim2.fromOffset(-14, -14), Parent = editor.frame })
 			hit.Activated:Connect(function()

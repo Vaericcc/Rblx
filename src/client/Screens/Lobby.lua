@@ -232,8 +232,27 @@ function Lobby.render(self: Lobby)
 	end
 end
 
+function Lobby.voiceBlocked(self: Lobby): boolean
+	return self.init.voiceEnabled == false
+end
+
+function Lobby.renderVoiceWarning(self: Lobby, body: Instance)
+	local card = Make.card({ Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, Make.list(nil, 6), Parent = body })
+	Make.heading("🎤 Voice chat required", 18, { TextColor3 = Theme.danger, Parent = card })
+	Make.label(self.init.voiceMessage or "StoryDub is played with voice chat. Turn it on in your Roblox settings, then rejoin.", 14, {
+		TextColor3 = Theme.text, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, Parent = card,
+	})
+	Make.label("Settings → Privacy → Voice chat. You must be 13+ with a verified account.", 13, {
+		TextColor3 = Theme.textDim, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, Parent = card,
+	})
+end
+
 function Lobby.renderJoin(self: Lobby)
 	local body = self.panelBody
+	if self:voiceBlocked() then
+		self:renderVoiceWarning(body)
+		return
+	end
 	if self.room then
 		Make.label("You're already in a room. Leave it to join another.", 14, { TextColor3 = Theme.textDim, Parent = body })
 	end
@@ -266,6 +285,10 @@ end
 
 function Lobby.renderCreate(self: Lobby)
 	local body = self.panelBody
+	if self:voiceBlocked() then
+		self:renderVoiceWarning(body)
+		return
+	end
 	local card = Make.card({ Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, Make.list(nil, 10), Parent = body })
 	Make.heading("Who can join?", 18, { Parent = card })
 	local row = Make.row(Responsive.touchSize(), 8, { Parent = card })

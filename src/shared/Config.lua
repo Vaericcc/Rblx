@@ -9,6 +9,9 @@ local SOLO_TESTING = RunService:IsStudio()
 
 local Config = {
 	SOLO_TESTING = SOLO_TESTING,
+	-- StoryDub is a voice game: players must have voice chat enabled to play.
+	-- Studio solo testing is exempt because voice doesn't run there.
+	VOICE_REQUIRED = not SOLO_TESTING,
 	MIN_PLAYERS = if SOLO_TESTING then 1 else 2,
 	MAX_PLAYERS = 10, -- per room
 
