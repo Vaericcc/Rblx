@@ -18,6 +18,34 @@ param(
 Add-Type -AssemblyName System.Drawing
 Add-Type -AssemblyName System.Windows.Forms
 
+# Windows display scaling: without this the screen is reported in scaled units
+# and the capture only covers the top-left part. Also lets us find the Studio window.
+Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+public static class Native {
+  [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
+  [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hWnd, out RECT rect);
+  [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left, Top, Right, Bottom; }
+}
+"@
+[Native]::SetProcessDPIAware() | Out-Null
+
+function Get-CaptureRect {
+  # Prefer the Roblox Studio window; fall back to the whole primary screen.
+  $studio = Get-Process -Name "RobloxStudioBeta" -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
+  if ($studio) {
+    $r = New-Object Native+RECT
+    if ([Native]::GetWindowRect($studio.MainWindowHandle, [ref]$r)) {
+      $w = $r.Right - $r.Left; $h = $r.Bottom - $r.Top
+      if ($w -gt 200 -and $h -gt 200) {
+        return [System.Drawing.Rectangle]::new($r.Left, $r.Top, $w, $h)
+      }
+    }
+  }
+  return [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+}
+
 $root = Join-Path (Split-Path $PSScriptRoot -Parent) "screenshots"
 $dir = Join-Path $root $Name
 New-Item -ItemType Directory -Force -Path $dir | Out-Null
@@ -28,9 +56,11 @@ for ($i = $Countdown; $i -gt 0; $i--) {
   Start-Sleep -Seconds 1
 }
 
-$bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+$bounds = Get-CaptureRect
+Write-Host ("Capturing {0}x{1} at {2},{3}" -f $bounds.Width, $bounds.Height, $bounds.X, $bounds.Y)
 $files = @()
 for ($k = 1; $k -le $Shots; $k++) {
+  $bounds = Get-CaptureRect
   $bmp = New-Object System.Drawing.Bitmap $bounds.Width, $bounds.Height
   $g = [System.Drawing.Graphics]::FromImage($bmp)
   $g.CopyFromScreen($bounds.Location, [System.Drawing.Point]::Empty, $bounds.Size)
