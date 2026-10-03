@@ -211,6 +211,8 @@ If Studio reports that HTTP requests are not enabled, turn on
 - **Voice Chat**: Game Settings → Communication, for live dubbing.
 - **API Services**: Game Settings → Security → Enable Studio Access to API Services, so points
   persist while testing in Studio. Without it the game still runs; points just reset.
+- The hub deletes the Baseplate template's slab and spawn when it builds; the slab's top is at the
+  same height as the flagstones and would flicker through them.
 - Teleports do not work in Studio, so matches run inside the hub server there. On a published
   place each party gets its own server.
 

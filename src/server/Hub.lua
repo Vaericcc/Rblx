@@ -484,7 +484,22 @@ local function buildTrees()
 	end
 end
 
+-- The Baseplate template's slab tops out at y=0, exactly the flagstone plane,
+-- so it z-fights the floor (white shapes "clipping through"). Remove template
+-- leftovers before building.
+local function clearTemplate()
+	for _, name in { "Baseplate", "SpawnLocation" } do
+		local inst = workspace:FindFirstChild(name)
+		if inst and not inst:IsDescendantOf(root) then inst:Destroy() end
+	end
+	-- anything else big and flat at floor level (a terrain-less template floor)
+	for _, inst in workspace:GetChildren() do
+		if inst:IsA("BasePart") and inst.Size.X >= 400 and inst.Size.Z >= 400 then inst:Destroy() end
+	end
+end
+
 function Hub.build()
+	clearTemplate()
 	local old = workspace:FindFirstChild("Hub")
 	if old then old:Destroy() end
 	root = Instance.new("Model")
