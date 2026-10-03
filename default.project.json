@@ -44,6 +44,10 @@
         "Technology": "Future",
         "ClockTime": 13.2
       }
+    },
+    "ReplicatedFirst": {
+      "$className": "ReplicatedFirst",
+      "$path": "src/first"
     }
   }
 }

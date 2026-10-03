@@ -77,15 +77,15 @@ local function poseLean(model: Model): { { joint: Motor6D, c0: CFrame } }
 	local d = math.rad
 	-- Torso: hips pushed out from the wall, shoulders back onto it, so the body
 	-- makes a clear diagonal rather than standing straight.
-	bend("LowerTorso", "Root", CFrame.Angles(d(-10), 0, d(14)))
-	bend("UpperTorso", "Waist", CFrame.Angles(d(-6), d(-12), d(-4)))
-	bend("Head", "Neck", CFrame.Angles(d(4), d(26), d(-10)))
+	bend("LowerTorso", "Root", CFrame.Angles(d(-8), 0, d(10)))
+	bend("UpperTorso", "Waist", CFrame.Angles(d(-8), d(-8), d(-2)))
+	bend("Head", "Neck", CFrame.Angles(d(2), d(22), d(-8)))
 	-- Arms folded: upper arms swing forward and in, elbows bend hard so the
 	-- forearms cross the chest.
-	bend("LeftUpperArm", "LeftShoulder", CFrame.Angles(d(72), d(38), d(-18)))
-	bend("LeftLowerArm", "LeftElbow", CFrame.Angles(d(108), d(-12), 0))
-	bend("RightUpperArm", "RightShoulder", CFrame.Angles(d(66), d(-38), d(18)))
-	bend("RightLowerArm", "RightElbow", CFrame.Angles(d(112), d(12), 0))
+	bend("LeftUpperArm", "LeftShoulder", CFrame.Angles(d(78), d(42), d(-10)))
+	bend("LeftLowerArm", "LeftElbow", CFrame.Angles(d(100), d(-20), d(6)))
+	bend("RightUpperArm", "RightShoulder", CFrame.Angles(d(70), d(-42), d(10)))
+	bend("RightLowerArm", "RightElbow", CFrame.Angles(d(104), d(20), d(-6)))
 	-- Legs: the wall-side leg takes the weight; the other crosses in front and
 	-- rests on its toe.
 	bend("LeftUpperLeg", "LeftHip", CFrame.Angles(d(6), 0, d(-14)))
@@ -172,7 +172,7 @@ function AvatarStage.slotCFrame(self: AvatarStage, index: number, total: number)
 	if self.mode == "lean" then
 		-- facing the camera (+z), turned so the left shoulder rests on the wall
 		-- behind, upper body tilted back into it, feet a little forward
-		return CFrame.new(0.2, 2.8, 0.6) * CFrame.Angles(0, math.pi + math.rad(16), 0) * CFrame.Angles(math.rad(6), 0, math.rad(12))
+		return CFrame.new(0.2, 2.8, 0.7) * CFrame.Angles(0, math.pi + math.rad(14), 0) * CFrame.Angles(math.rad(10), 0, math.rad(10))
 	end
 	local spacing = 4.5
 	local x = (index - (total + 1) / 2) * spacing

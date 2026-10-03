@@ -149,6 +149,8 @@ src/server/
   Round.lua                  Phase runner, assignment, showcase, voting, scoring
   Projects.lua               Storyboard state and all untrusted-input handling
   Filter.lua                 TextService filtering for every player-written string
+src/first/
+  Boot.client.lua            ReplicatedFirst: ink loading screen from the very first frame
 src/client/
   Main.client.lua            Router: lobby vs match state, mounts screens, auto-submits
   UI/Responsive.lua          Compact vs regular detection, UI scale, touch sizes

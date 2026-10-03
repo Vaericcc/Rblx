@@ -71,8 +71,8 @@ local function buildPad(index: number, position: Vector3): Pad
 	rim.Parent = part
 
 	local billboard = Instance.new("BillboardGui")
-	billboard.Size = UDim2.fromOffset(200, 64)
-	billboard.StudsOffset = Vector3.new(0, 3.2, 0)
+	billboard.Size = UDim2.new(7, 0, 1.9, 0) -- studs: same size in the world on every screen
+	billboard.StudsOffset = Vector3.new(0, 3.4, 0)
 	billboard.AlwaysOnTop = false
 	billboard.MaxDistance = 120
 	billboard.Parent = part
@@ -88,23 +88,23 @@ local function buildPad(index: number, position: Vector3): Pad
 	corner.Parent = bg
 
 	local label = Instance.new("TextLabel")
-	label.Size = UDim2.new(1, -16, 0, 28)
-	label.Position = UDim2.fromOffset(8, 6)
+	label.Size = UDim2.new(1, -0.4, 0.55, 0)
+	label.Position = UDim2.new(0, 0.2, 0, 0.1)
 	label.BackgroundTransparency = 1
-	label.Font = Enum.Font.GothamBold
-	label.TextSize = 20
+	label.Font = Enum.Font.Bangers
+	label.TextScaled = true
 	label.TextColor3 = color
-	label.Text = ("PLATFORM %d"):format(index)
+	label.Text = "STAND HERE TO PLAY"
 	label.Parent = bg
 
 	local sub = Instance.new("TextLabel")
-	sub.Size = UDim2.new(1, -16, 0, 22)
-	sub.Position = UDim2.fromOffset(8, 34)
+	sub.Size = UDim2.new(1, -0.4, 0.3, 0)
+	sub.Position = UDim2.new(0, 0.2, 0.62, 0)
 	sub.BackgroundTransparency = 1
 	sub.Font = Enum.Font.Gotham
-	sub.TextSize = 14
+	sub.TextScaled = true
 	sub.TextColor3 = Color3.fromRGB(245, 245, 250)
-	sub.Text = "Stand here to play"
+	sub.Text = ""
 	sub.Parent = bg
 
 	return { index = index, part = part, label = label, sub = sub }
@@ -132,7 +132,7 @@ local function playersOn(pad: Pad): { Player }
 end
 
 local function describe(room: any): string
-	if not room then return "Stand here to play" end
+	if not room or #room.members == 0 then return "" end
 	if room.state == "playing" then return "Match in progress" end
 	if room.state == "starting" and room.startsAt then
 		local left = math.max(0, math.ceil(room.startsAt - workspace:GetServerTimeNow()))

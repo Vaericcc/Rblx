@@ -527,6 +527,9 @@ end)
 -- couple of seconds so the join screen (and your avatar) are actually seen.
 joinShownAt = os.clock()
 setOverlay("Loading", "join")
+-- The ReplicatedFirst boot screen has been covering the world until now.
+local boot = playerGui:FindFirstChild("DubbleTakeBoot")
+if boot then task.delay(0.1, function() boot:Destroy() end) end
 Net.remote:FireServer(Net.C2S.Hello)
 
 -- Resize / rotate: rescale, and rebuild the chrome if the layout class changed.

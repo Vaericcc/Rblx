@@ -75,22 +75,24 @@ function Draw.show(container: Frame, data: any, ctx: any)
 	local railThick = size + 14
 	local main, side = Layout.split(container, {
 		mainFraction = 0.62,
-		compactMainHeight = math.min(v.X - 32, math.floor(v.Y * 0.58)) + 44 + railThick + 4,
+		compactMainHeight = math.min(v.X - 32, math.floor(v.Y * 0.58)) + railThick + 4 + (if data.panels > 1 then 44 else 0),
 	})
 
 	local panelCount: number = data.panels
 	local panelData: { any } = {}
 	local currentPanel = 1
 
-	-- Top strip: panel tabs + hint
-	local tabs = Make.row(36, 6, { Parent = main })
-	local hint = Make.label("", 12, { TextColor3 = Theme.textDim, Size = UDim2.new(0.6, 0, 0, 36), Position = UDim2.new(0.4, 0, 0, 0), TextXAlignment = Enum.TextXAlignment.Right, TextYAlignment = Enum.TextYAlignment.Center, Parent = main })
+	-- Top strip: panel tabs + hint (dropped on phones with a single panel: the canvas is the point)
+	local showTabs = panelCount > 1 or not compact
+	local topH = if showTabs then 44 else 0
+	local tabs = Make.row(36, 6, { Parent = main, Visible = showTabs })
+	local hint = Make.label("", 12, { TextColor3 = Theme.textDim, Size = UDim2.new(0.6, 0, 0, 36), Position = UDim2.new(0.4, 0, 0, 0), TextXAlignment = Enum.TextXAlignment.Right, TextYAlignment = Enum.TextYAlignment.Center, Visible = showTabs, Parent = main })
 
 	-- Tool rail + canvas
 	local toolHolder = Make("Frame", {
 		BackgroundColor3 = Theme.panel, Make.corner(), Make.pad(6),
-		Size = if stacked then UDim2.new(1, 0, 0, railThick) else UDim2.new(0, railThick, 1, -44),
-		Position = UDim2.fromOffset(0, if stacked then 42 else 44),
+		Size = if stacked then UDim2.new(1, 0, 0, railThick) else UDim2.new(0, railThick, 1, -topH),
+		Position = UDim2.fromOffset(0, if stacked then math.max(topH - 2, 0) else topH),
 		Parent = main,
 	})
 	local toolRail = Make("ScrollingFrame", {
@@ -103,8 +105,8 @@ function Draw.show(container: Frame, data: any, ctx: any)
 	})
 	local canvasArea = Make("Frame", {
 		BackgroundTransparency = 1,
-		Size = if stacked then UDim2.new(1, 0, 1, -(48 + railThick)) else UDim2.new(1, -(railThick + 10), 1, -44),
-		Position = if stacked then UDim2.fromOffset(0, 48 + railThick) else UDim2.fromOffset(railThick + 10, 44),
+		Size = if stacked then UDim2.new(1, 0, 1, -(topH + 4 + railThick)) else UDim2.new(1, -(railThick + 10), 1, -topH),
+		Position = if stacked then UDim2.fromOffset(0, topH + 4 + railThick) else UDim2.fromOffset(railThick + 10, topH),
 		Parent = main,
 	})
 	local canvas = Canvas.new(canvasArea, true)

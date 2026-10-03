@@ -377,9 +377,12 @@ function Menu.content(self: Menu): ScrollingFrame
 	self.hideToken = (self.hideToken or 0) + 1
 	if not self.paper.Visible then
 		self.paper.Visible = true
+		local ps = self.paper:FindFirstChildOfClass("UIStroke")
+		if ps then ps.Transparency = 0 end
 		if motion() then
 			self.paper.Position = self.paperPos + UDim2.fromOffset(0, 40)
 			self.paper.GroupTransparency = 1
+			if ps then ps.Transparency = 1 tween(ps, 0.3, { Transparency = 0 }) end
 			tween(self.paper, 0.35, { Position = self.paperPos, GroupTransparency = 0 }, Enum.EasingStyle.Back)
 		end
 	end
@@ -404,13 +407,16 @@ function Menu.hideContent(self: Menu)
 	self.hideToken = (self.hideToken or 0) + 1
 	local token = self.hideToken
 	if not motion() then self:clearContent() self.paper.Visible = false return end
+	local ps = self.paper:FindFirstChildOfClass("UIStroke")
 	tween(self.paper, 0.22, { Position = self.paperPos + UDim2.fromOffset(0, 40), GroupTransparency = 1 }, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
+	if ps then tween(ps, 0.2, { Transparency = 1 }, Enum.EasingStyle.Quint, Enum.EasingDirection.In) end
 	task.delay(0.22, function()
 		if self.hideToken == token and not self.closed then
 			self:clearContent()
 			self.paper.Visible = false
 			self.paper.Position = self.paperPos
 			self.paper.GroupTransparency = 0
+			if ps then ps.Transparency = 0 end
 		end
 	end)
 end
@@ -452,11 +458,14 @@ function Menu.close(self: Menu)
 	-- 3. paper drops and fades as one sheet
 	if self.paper.Visible then
 		tween(self.paper, 0.3, { Position = self.paperPos + UDim2.fromOffset(0, 70), GroupTransparency = 1, Rotation = self.paper.Rotation + 2 }, Enum.EasingStyle.Quint, IN)
+		-- a CanvasGroup's own UIStroke is drawn outside the group, so fade it by hand
+		local ps = self.paper:FindFirstChildOfClass("UIStroke")
+		if ps then tween(ps, 0.25, { Transparency = 1 }, Enum.EasingStyle.Quint, IN) end
 	end
 	-- 4. avatar fades, slash sweeps out the far side, world comes back into focus
 	if self.stage then self.stage:fadeOut(0.3) end
 	task.delay(0.08, function()
-		tween(self.slash, 0.32, { Position = UDim2.fromScale(if compact then 0.5 else 1.7, if compact then 1.8 else 0.5) }, Enum.EasingStyle.Quint, IN)
+		tween(self.slash, 0.34, { Position = UDim2.fromScale(1.8, 0.5) }, Enum.EasingStyle.Quint, IN)
 	end)
 	if self.blur then tween(self.blur, 0.4, { Size = 0 }) end
 	if self.color then tween(self.color, 0.4, { Saturation = 0, Contrast = 0, Brightness = 0 }) end
