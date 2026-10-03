@@ -1,6 +1,6 @@
 --!strict
 --[[
-	Awards vote in the Persona shop register, StoryDub palette: an ink
+	Awards vote in the Persona shop register, Dubble Take palette: an ink
 	backdrop with a chain-link lattice, a big slanted title, and for each
 	award a tilted stack of cards you flick through and stamp a pick on.
 ]]

@@ -43,7 +43,7 @@ Settings.schema = {
 
 local function load()
 	local gui = Players.LocalPlayer:FindFirstChild("PlayerGui")
-	local raw = gui and gui:GetAttribute("StoryDubSettings")
+	local raw = gui and gui:GetAttribute("DubbleTakeSettings")
 	if typeof(raw) == "string" then
 		local ok, data = pcall(HttpService.JSONDecode, HttpService, raw)
 		if ok and typeof(data) == "table" then
@@ -57,17 +57,17 @@ end
 local function save()
 	local gui = Players.LocalPlayer:FindFirstChild("PlayerGui")
 	if gui then
-		gui:SetAttribute("StoryDubSettings", HttpService:JSONEncode(Settings.values))
+		gui:SetAttribute("DubbleTakeSettings", HttpService:JSONEncode(Settings.values))
 	end
 end
 
 function Settings.apply()
 	local v = Settings.values
 	pcall(function()
-		local group = SoundService:FindFirstChild("StoryDubMaster") :: SoundGroup?
+		local group = SoundService:FindFirstChild("DubbleTakeMaster") :: SoundGroup?
 		if not group then
 			group = Instance.new("SoundGroup")
-			group.Name = "StoryDubMaster"
+			group.Name = "DubbleTakeMaster"
 			group.Parent = SoundService
 		end
 		group.Volume = v.masterVolume

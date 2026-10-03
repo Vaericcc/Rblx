@@ -5,7 +5,7 @@ local RunService = game:GetService("RunService")
 
 local Net = {}
 
-local REMOTE_NAME = "StoryDubNet"
+local REMOTE_NAME = "DubbleTakeNet"
 
 local function getRemote(): RemoteEvent
 	if RunService:IsServer() then

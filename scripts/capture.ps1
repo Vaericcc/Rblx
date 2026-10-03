@@ -1,4 +1,4 @@
-# Capture the StoryDub UI tour and build a labelled contact sheet.
+# Capture the Dubble Take UI tour and build a labelled contact sheet.
 #
 #   .\scripts\capture.ps1 -Name before     then   .\scripts\capture.ps1 -Name after
 #
@@ -132,7 +132,7 @@ $sg.Clear([System.Drawing.Color]::FromArgb(24, 24, 32))
 $font = New-Object System.Drawing.Font("Segoe UI", 16, [System.Drawing.FontStyle]::Bold)
 $small = New-Object System.Drawing.Font("Segoe UI", 11)
 $white = [System.Drawing.Brushes]::White
-$sg.DrawString(("StoryDub tour: {0}   {1}" -f $Name, (Get-Date -Format "yyyy-MM-dd HH:mm")), $font, $white, $pad, $pad)
+$sg.DrawString(("Dubble Take tour: {0}   {1}" -f $Name, (Get-Date -Format "yyyy-MM-dd HH:mm")), $font, $white, $pad, $pad)
 for ($i = 0; $i -lt $files.Count; $i++) {
   $img = [System.Drawing.Image]::FromFile($files[$i])
   $col = $i % $Columns; $row = [math]::Floor($i / $Columns)

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Pull the latest StoryDub from GitHub and serve it to Roblox Studio with Rojo.
+# Pull the latest Dubble Take from GitHub and serve it to Roblox Studio with Rojo.
 # Usage: ./scripts/sync.sh            (pull + rojo serve)
-#        ./scripts/sync.sh build      (pull + build StoryDub.rbxl)
+#        ./scripts/sync.sh build      (pull + build DubbleTake.rbxl)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -15,8 +15,8 @@ if ! command -v rojo >/dev/null 2>&1; then
 fi
 
 if [[ "${1:-serve}" == "build" ]]; then
-  rojo build -o StoryDub.rbxl
-  echo "Built StoryDub.rbxl - open it in Studio."
+  rojo build -o DubbleTake.rbxl
+  echo "Built DubbleTake.rbxl - open it in Studio."
 else
   echo "Serving. In Studio: Plugins -> Rojo -> Connect (localhost:34872)."
   rojo serve

@@ -81,7 +81,7 @@ local function run()
 		r:results(winners)
 	end)
 	if not ok then
-		warn("[StoryDub] match server round crashed:", err)
+		warn("[DubbleTake] match server round crashed:", err)
 	end
 	r:destroy()
 	round = nil

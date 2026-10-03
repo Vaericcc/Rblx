@@ -382,14 +382,14 @@ function Round.runPhase(self: Round, phase: Modes.Phase)
 	local done = false
 	task.spawn(function()
 		local ok, err = pcall(function() self:applyPhase(phase) end)
-		if not ok then warn("[StoryDub] applyPhase failed:", err) end
+		if not ok then warn("[DubbleTake] applyPhase failed:", err) end
 		done = true
 	end)
 	local limit = now() + 12
 	while not done and now() < limit do
 		task.wait(0.1)
 	end
-	if not done then warn("[StoryDub] applyPhase timed out for", phase.kind) end
+	if not done then warn("[DubbleTake] applyPhase timed out for", phase.kind) end
 	self.phase = nil
 end
 

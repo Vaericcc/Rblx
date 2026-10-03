@@ -73,7 +73,7 @@ function Rooms.hasVoice(player: Player): boolean
 	return value
 end
 
-Rooms.VOICE_MESSAGE = "StoryDub is played with voice chat. Turn on voice chat in your Roblox settings, then rejoin."
+Rooms.VOICE_MESSAGE = "Dubble Take is played with voice chat. Turn on voice chat in your Roblox settings, then rejoin."
 
 local function warnNoVoice(player: Player)
 	local last = voiceWarnedAt[player.UserId] or 0
@@ -553,7 +553,7 @@ local function teleportToMatchServer(room: Room, mode: Modes.Mode, players: { Pl
 		return TeleportService:ReserveServer(game.PlaceId)
 	end)
 	if not ok then
-		warn("[StoryDub] ReserveServer failed:", code)
+		warn("[DubbleTake] ReserveServer failed:", code)
 		return false
 	end
 	local memberIds = {}
@@ -572,7 +572,7 @@ local function teleportToMatchServer(room: Room, mode: Modes.Mode, players: { Pl
 		TeleportService:TeleportAsync(game.PlaceId, players, options)
 	end)
 	if not sent then
-		warn("[StoryDub] TeleportAsync failed; running the match here instead")
+		warn("[DubbleTake] TeleportAsync failed; running the match here instead")
 		for _, p in players do fire(p, Net.S2C.Teleporting, nil) end
 		return false
 	end
@@ -623,7 +623,7 @@ function Rooms.startMatch(room: Room)
 			round:results(winners)
 		end)
 		if not ok then
-			warn("[StoryDub] round crashed:", err)
+			warn("[DubbleTake] round crashed:", err)
 		end
 		round:destroy()
 		room.round = nil

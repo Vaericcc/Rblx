@@ -90,12 +90,12 @@ local function buildLighting()
 	Lighting.GlobalShadows = true
 	Lighting.ShadowSoftness = 0.25
 	Lighting.FogEnd = 1400
-	for _, name in { "StoryDubSky", "StoryDubAtmosphere", "StoryDubBloom", "StoryDubColor", "StoryDubRays" } do
+	for _, name in { "DubbleTakeSky", "DubbleTakeAtmosphere", "DubbleTakeBloom", "DubbleTakeColor", "DubbleTakeRays" } do
 		local old = Lighting:FindFirstChild(name)
 		if old then old:Destroy() end
 	end
 	local sky = Instance.new("Sky")
-	sky.Name = "StoryDubSky"
+	sky.Name = "DubbleTakeSky"
 	sky.SkyboxBk = "rbxassetid://591058823"
 	sky.SkyboxDn = "rbxassetid://591059876"
 	sky.SkyboxFt = "rbxassetid://591058104"
@@ -105,7 +105,7 @@ local function buildLighting()
 	sky.StarCount = 1500
 	sky.Parent = Lighting
 	local atmosphere = Instance.new("Atmosphere")
-	atmosphere.Name = "StoryDubAtmosphere"
+	atmosphere.Name = "DubbleTakeAtmosphere"
 	atmosphere.Density = 0.3
 	atmosphere.Offset = 0.4
 	atmosphere.Color = Color3.fromRGB(200, 206, 214)
@@ -114,13 +114,13 @@ local function buildLighting()
 	atmosphere.Haze = 1.4
 	atmosphere.Parent = Lighting
 	local bloom = Instance.new("BloomEffect")
-	bloom.Name = "StoryDubBloom"
+	bloom.Name = "DubbleTakeBloom"
 	bloom.Intensity = 0.35
 	bloom.Size = 24
 	bloom.Threshold = 1.6
 	bloom.Parent = Lighting
 	local color = Instance.new("ColorCorrectionEffect")
-	color.Name = "StoryDubColor"
+	color.Name = "DubbleTakeColor"
 	color.Saturation = -0.05
 	color.Contrast = 0.1
 	color.TintColor = Color3.fromRGB(246, 248, 255)
@@ -244,7 +244,7 @@ local function buildFloor()
 	label.Font = Enum.Font.Bangers
 	label.TextScaled = true
 	label.RichText = true
-	label.Text = "<font color=\"#f0eadc\">STORY</font><font color=\"#ff466e\">DUB</font>"
+	label.Text = "<font color=\"#f0eadc\">DUBBLE</font><font color=\"#ff466e\">TAKE</font>"
 	label.TextStrokeTransparency = 0.3
 	label.TextStrokeColor3 = Color3.fromRGB(18, 16, 20)
 	label.Parent = sign

@@ -1,5 +1,5 @@
 --!strict
--- Global tuning knobs for StoryDub. Everything time-related is in seconds.
+-- Global tuning knobs for Dubble Take. Everything time-related is in seconds.
 
 local RunService = game:GetService("RunService")
 
@@ -9,7 +9,7 @@ local SOLO_TESTING = RunService:IsStudio()
 
 local Config = {
 	SOLO_TESTING = SOLO_TESTING,
-	-- StoryDub is a voice game: players must have voice chat enabled to play.
+	-- Dubble Take is a voice game: players must have voice chat enabled to play.
 	-- Studio solo testing is exempt because voice doesn't run there.
 	VOICE_REQUIRED = not SOLO_TESTING,
 	-- Matches run in their own reserved server (TeleportService). Studio can't

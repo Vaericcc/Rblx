@@ -1,4 +1,4 @@
-# StoryDub
+# Dubble Take
 
 A Roblox party game where you **write a story, draw it, and your friends dub it**.
 Every round, each player owns one storyboard. Depending on the mode, the premise,
@@ -98,7 +98,7 @@ mode_blind_dub, mode_telephone.
 
 A sunken gothic courtyard cut into a grass hill: stacked masonry walls with buttresses and a
 parapet, four arched gateways with torches facing the four platforms, corner towers, a
-flagstone floor, a central dais with the StoryDub sign, and planters. Drop tree models into
+flagstone floor, a central dais with the Dubble Take sign, and planters. Drop tree models into
 `ReplicatedStorage/Assets/Trees` (and props into `Assets/Props`) in Studio and the hub clones
 them onto the terraces; without them it builds its own.
 
@@ -116,7 +116,7 @@ Right after the cast is written, everyone claims the characters they want to voi
 two per story, never your own story). Unclaimed roles are handed out automatically. During
 the dub phase you write lines only for your characters, and in the showcase you perform them.
 
-StoryDub is a **voice chat game**. Roblox does not allow experiences to record the microphone,
+Dubble Take is a **voice chat game**. Roblox does not allow experiences to record the microphone,
 so dubbing is always live over Roblox voice chat, and players without voice chat enabled
 cannot create or join rooms or form a platform match (the lobby tells them why). Enable
 Voice Chat in Game Settings → Communication. Speech bubbles stay on screen as subtitles.
@@ -161,7 +161,7 @@ src/client/
   Screens/Lobby.lua          Hub UI: Play button, Join/Create/Your Room panel, pad banner
   Screens/                   TextPhases (premise/cast/script/caption), Draw, Dub,
                              Showcase, Vote, Results
-plugin/StoryDubSync.lua      Studio plugin: pull from GitHub and install into the open place
+plugin/DubbleTakeSync.lua      Studio plugin: pull from GitHub and install into the open place
 scripts/sync.sh, sync.ps1    git pull + rojo serve / rojo build
 docs/DESIGN.md               The brief this build follows
 ```
@@ -185,17 +185,17 @@ ReplicatedStorage, ServerScriptService, StarterPlayer and Workspace. Every `git 
 is reflected live while `rojo serve` is running. To produce a standalone place file instead:
 
 ```sh
-./scripts/sync.sh build    # writes StoryDub.rbxl
+./scripts/sync.sh build    # writes DubbleTake.rbxl
 ```
 
-### Option B: the StoryDub Sync plugin (no clone, no Rojo)
+### Option B: the Dubble Take Sync plugin (no clone, no Rojo)
 
-`plugin/StoryDubSync.lua` is a Studio plugin that downloads the repo from GitHub and
+`plugin/DubbleTakeSync.lua` is a Studio plugin that downloads the repo from GitHub and
 installs it directly into the open place, using the same `default.project.json` mapping.
 
-1. In Studio: **Plugins → Plugins Folder**. Copy `StoryDubSync.lua` into that folder and
+1. In Studio: **Plugins → Plugins Folder**. Copy `DubbleTakeSync.lua` into that folder and
    restart Studio. (Or paste the file into a Script, right click → **Save as Local Plugin**.)
-2. Click **StoryDub → Sync from GitHub** on the Plugins toolbar.
+2. Click **Dubble Take → Sync from GitHub** on the Plugins toolbar.
 3. Repo is prefilled as `Vaericcc/Rblx`, branch as `claude/lucid-bardeen-xi7ati`. For a
    private repo paste a GitHub personal access token with **Contents: read**.
 4. Press **Sync into this place**. The sync is one undo step.

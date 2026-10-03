@@ -50,7 +50,7 @@ Responsive.waitUntilReady()
 -- Root GUI
 
 local gui = Make("ScreenGui", {
-	Name = "StoryDub",
+	Name = "DubbleTake",
 	ResetOnSpawn = false,
 	IgnoreGuiInset = false,
 	ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
@@ -462,7 +462,7 @@ Net.remote.OnClientEvent:Connect(function(action: string, data: any)
 end)
 
 -- Loading from the first frame until the hub answers
-setOverlay("Loading StoryDub")
+setOverlay("Loading Dubble Take")
 Net.remote:FireServer(Net.C2S.Hello)
 
 -- Resize / rotate: rescale, and rebuild the chrome if the layout class changed.
@@ -524,7 +524,7 @@ if game:GetService("RunService"):IsStudio() then
 		cmd.Triggered:Connect(function() startTour() end)
 		cmd.Parent = TextChatService
 	end)
-	print("[StoryDub] Tour ready: press F8 or type /tour")
+	print("[DubbleTake] Tour ready: press F8 or type /tour")
 end
 
 player.CharacterAdded:Connect(function()

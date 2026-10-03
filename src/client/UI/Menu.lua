@@ -92,10 +92,10 @@ function Menu.open(opts: Opts): Menu
 	-- World treatment: blur + desaturate (local Lighting effects, removed on close)
 	self.blur = Instance.new("BlurEffect")
 	self.blur.Size = 0
-	self.blur.Name = "StoryDubMenuBlur"
+	self.blur.Name = "DubbleTakeMenuBlur"
 	self.blur.Parent = Lighting
 	self.color = Instance.new("ColorCorrectionEffect")
-	self.color.Name = "StoryDubMenuColor"
+	self.color.Name = "DubbleTakeMenuColor"
 	self.color.Saturation = 0
 	self.color.Parent = Lighting
 	tween(self.blur, 0.35, { Size = 18 })

@@ -171,7 +171,7 @@ end
 function Lobby.openMenu(self: Lobby)
 	if self.menu then self:render() return end
 	self.menu = Menu.open({
-		title = "STORYDUB",
+		title = "DUBBLE TAKE",
 		items = {},
 		parent = self.root,
 		stage = "solo",
@@ -202,7 +202,7 @@ function Lobby.render(self: Lobby)
 		self:renderRoomMenu(menu, active)
 		return
 	end
-	menu:setChrome("STORYDUB", Theme.cream, nil)
+	menu:setChrome("DUBBLE TAKE", Theme.cream, nil)
 
 	local items: { Menu.Item } = {
 		{ id = "join", label = "JOIN", onClick = function() self.page = "join" self:render() end },
@@ -351,7 +351,7 @@ end
 function Lobby.renderVoiceWarning(self: Lobby, body: Instance)
 	local card = Menu.card(body)
 	Menu.heading(card, "VOICE CHAT REQUIRED", 22)
-	Menu.text(card, self.init.voiceMessage or "StoryDub is played with voice chat. Turn it on in your Roblox settings, then rejoin.")
+	Menu.text(card, self.init.voiceMessage or "Dubble Take is played with voice chat. Turn it on in your Roblox settings, then rejoin.")
 	Menu.text(card, "Settings → Privacy → Voice chat. You must be 13+ with a verified account.", 13, true)
 end
 

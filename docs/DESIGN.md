@@ -1,11 +1,11 @@
-# StoryDub design brief
+# Dubble Take design brief
 
 This is the brief the current build was made from. It is the sharpened version of
 the original idea ("draw a storyboard and your friends dub over it").
 
 ## Brief
 
-Build **StoryDub**, a cross-platform (phone, tablet, PC) voice-chat party game for Roblox.
+Build **Dubble Take**, a cross-platform (phone, tablet, PC) voice-chat party game for Roblox.
 Players write a premise and cast, draw a storyboard, claim roles and voice the result live.
 Seven modes are pure data (an ordered list of phases plus a seat offset): Classic, Comic,
 Story Swap, Script Swap, Co-op Comic, Blind Dub and Broken Telephone.

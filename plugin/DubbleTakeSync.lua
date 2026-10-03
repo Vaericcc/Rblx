@@ -1,5 +1,5 @@
 --[[
-	StoryDub Sync - Roblox Studio plugin
+	Dubble Take Sync - Roblox Studio plugin
 
 	Pulls this repository straight from GitHub and installs it into the open place,
 	following the same mapping as default.project.json (Rojo conventions):
@@ -29,7 +29,7 @@ local PROJECT_FILE = "default.project.json"
 
 local function request(url: string, token: string?, accept: string?): string
 	local headers: { [string]: string } = {
-		["User-Agent"] = "StoryDubSync",
+		["User-Agent"] = "DubbleTakeSync",
 		["Accept"] = accept or "application/vnd.github+json",
 	}
 	if token and token ~= "" then
@@ -58,7 +58,7 @@ local function fetchTree(repo: string, branch: string, token: string?): { any }
 	local url = ("https://api.github.com/repos/%s/git/trees/%s?recursive=1"):format(repo, branch)
 	local data = HttpService:JSONDecode(request(url, token))
 	if data.truncated then
-		warn("[StoryDub Sync] tree was truncated by GitHub; some files may be missing")
+		warn("[Dubble Take Sync] tree was truncated by GitHub; some files may be missing")
 	end
 	return data.tree or {}
 end
@@ -105,7 +105,7 @@ local function applyProperties(instance: Instance, props: { [string]: any }?)
 			(instance :: any)[name] = convertProperty(name, value)
 		end)
 		if not ok then
-			warn(("[StoryDub Sync] could not set %s.%s: %s"):format(instance.Name, name, tostring(err)))
+			warn(("[Dubble Take Sync] could not set %s.%s: %s"):format(instance.Name, name, tostring(err)))
 		end
 	end
 end
@@ -224,7 +224,7 @@ local function sync(repo: string, branch: string, token: string?, log: (string) 
 		end
 	end
 
-	local recording = ChangeHistoryService:TryBeginRecording("StoryDub Sync")
+	local recording = ChangeHistoryService:TryBeginRecording("Dubble Take Sync")
 	buildNode(nil, "DataModel", project.tree, files, log)
 	if recording then
 		ChangeHistoryService:FinishRecording(recording, Enum.FinishRecordingOperation.Commit)
@@ -235,13 +235,13 @@ end
 ----------------------------------------------------------------------------
 -- UI
 
-local toolbar = plugin:CreateToolbar("StoryDub")
-local button = toolbar:CreateButton("Sync from GitHub", "Pull the latest StoryDub code from GitHub into this place", "rbxassetid://4458901886")
+local toolbar = plugin:CreateToolbar("DubbleTake")
+local button = toolbar:CreateButton("Sync from GitHub", "Pull the latest Dubble Take code from GitHub into this place", "rbxassetid://4458901886")
 
-local widget = plugin:CreateDockWidgetPluginGui("StoryDubSync", DockWidgetPluginGuiInfo.new(
+local widget = plugin:CreateDockWidgetPluginGui("DubbleTakeSync", DockWidgetPluginGuiInfo.new(
 	Enum.InitialDockState.Float, false, false, 360, 330, 320, 300
 ))
-widget.Title = "StoryDub Sync"
+widget.Title = "Dubble Take Sync"
 
 local root = Instance.new("Frame")
 root.Size = UDim2.fromScale(1, 1)
@@ -349,7 +349,7 @@ local function log(line: string)
 	table.insert(lines, line)
 	while #lines > 10 do table.remove(lines, 1) end
 	status.Text = table.concat(lines, "\n")
-	print("[StoryDub Sync] " .. line)
+	print("[Dubble Take Sync] " .. line)
 end
 
 local busy = false
