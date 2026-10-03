@@ -192,14 +192,14 @@ local function buildFloor()
 	for _, rot in { 0, 90, 180, 270 } do
 		local r = CFrame.Angles(0, math.rad(rot), 0)
 		block(Vector3.new(2.6, 2.6, 0.3), r * CFrame.new(0, FLOOR_Y + 6.5, 2.45), MORTAR, Enum.Material.Concrete, "Niche")
-		local inlay = block(Vector3.new(1.6, 1.6, 0.15), r * CFrame.new(0, FLOOR_Y + 6.5, 2.55), Color3.fromRGB(255, 196, 61), Enum.Material.Neon, "Emblem")
-		inlay.Transparency = 0.25
+		local inlay = block(Vector3.new(1.2, 1.2, 0.15), r * CFrame.new(0, FLOOR_Y + 6.5, 2.55), Color3.fromRGB(214, 170, 70), Enum.Material.Metal, "Emblem")
+		inlay.Reflectance = 0.3
 		inlay.CastShadow = false
 	end
 	local light = Instance.new("PointLight")
 	light.Color = Color3.fromRGB(255, 210, 140)
-	light.Range = 22
-	light.Brightness = 0.7
+	light.Range = 14
+	light.Brightness = 0.3
 	light.Parent = plinth
 	-- Soft fill so the sunken floor isn't permanently in the walls' shadow
 	local fill = Instance.new("PointLight")

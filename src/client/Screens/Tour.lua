@@ -123,7 +123,7 @@ function Tour.run(api: any)
 	api.lobby.root.Visible = false
 	api.setCamera(CFrame.lookAt(Vector3.new(0, 150, 150), Vector3.new(0, 0, 0))) say("hub overhead") hold()
 	api.setCamera(CFrame.lookAt(Vector3.new(0, 7, 14), Vector3.new(0, 10, -60))) say("hub from dais") hold()
-	api.setCamera(CFrame.lookAt(Vector3.new(0, 5, -40), Vector3.new(0, 8, -70))) say("hub gateway") hold()
+	api.setCamera(CFrame.lookAt(Vector3.new(6, 6, -14), Vector3.new(0, 11, -54))) say("hub gateway") hold()
 	api.resetCamera()
 	api.lobby.root.Visible = true
 

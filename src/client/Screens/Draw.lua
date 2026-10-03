@@ -73,7 +73,7 @@ function Draw.show(container: Frame, data: any, ctx: any)
 	local size = if compact then 40 else 44
 	local railThick = size + 14
 	local main, side = Layout.split(container, {
-		mainFraction = 0.7,
+		mainFraction = 0.62,
 		compactMainHeight = math.min(v.X - 32, math.floor(v.Y * 0.58)) + 44 + railThick + 4,
 	})
 
