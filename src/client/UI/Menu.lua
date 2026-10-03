@@ -121,13 +121,13 @@ function Menu.open(opts: Opts): Menu
 	})
 	tween(self.slash, 0.45, { Position = UDim2.fromScale(if compact then 0.5 else 0.2, 0.5) }, Enum.EasingStyle.Back)
 	-- rough torn edge: a few ink shards along the slash
-	for i = 1, 6 do
+	for i = 1, 9 do
 		Make("Frame", {
 			BackgroundColor3 = Theme.ink,
-			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.fromScale(1, 0.1 + i * 0.13),
-			Size = UDim2.fromOffset(40 + (i % 3) * 30, 6 + (i % 2) * 8),
-			Rotation = (i % 2 == 0) and 12 or -8,
+			AnchorPoint = Vector2.new(0, 0.5),
+			Position = UDim2.fromScale(0.985, 0.05 + i * 0.1),
+			Size = UDim2.fromOffset(14 + (i % 3) * 16, 22 + (i % 2) * 18),
+			Rotation = (i % 2 == 0) and 6 or -5,
 			ZIndex = 301,
 			Parent = self.slash,
 		})
@@ -142,14 +142,14 @@ function Menu.open(opts: Opts): Menu
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Rotation = if compact then 0 else -90,
 		Position = if compact then UDim2.new(0.5, 0, 0, 40) else UDim2.fromScale(0.07, 0.5),
-		Size = if compact then UDim2.new(1, -32, 0, 60) else UDim2.fromOffset(900, 120),
+		Size = if compact then UDim2.new(1, -32, 0, 60) else UDim2.fromOffset(math.floor(Responsive.viewport().Y * 0.86), 120),
 		TextWrapped = false,
 		TextScaled = false,
 		ZIndex = 302,
 		TextTransparency = 1,
 		Parent = self.root,
 	})
-	if compact then self.titleLabel.TextXAlignment = Enum.TextXAlignment.Center end
+	self.titleLabel.TextXAlignment = Enum.TextXAlignment.Center
 	tween(self.titleLabel, 0.5, { TextTransparency = 0 })
 
 	-- Item bars
@@ -207,16 +207,15 @@ function Menu.setItems(self: Menu, items: { Item })
 			TextSize = if compact then 24 else 32,
 			TextColor3 = if item.disabled then Theme.creamDark else Theme.cream,
 			TextXAlignment = Enum.TextXAlignment.Left,
-			BackgroundColor3 = Theme.ink,
-			BackgroundTransparency = if item.disabled then 0.5 else 0.08,
+			BackgroundColor3 = Theme.inkSoft,
+			BackgroundTransparency = if item.disabled then 0.5 else 0,
 			AutoButtonColor = false,
 			Size = UDim2.new(if compact then 1 else 0.82, 0, 0, h),
 			Position = UDim2.fromOffset(-500, 0),
 			Rotation = if compact then 0 else -2,
 			LayoutOrder = i,
 			ZIndex = 303,
-			Make("UIStroke", { Color = Theme.cream, Thickness = 1.5, Transparency = 0.6 }),
-			Make("UIGradient", { Color = ColorSequence.new(Theme.ink, Theme.inkSoft), Rotation = 0 }),
+			Make("UIStroke", { Color = Theme.cream, Thickness = 1.5, Transparency = 0.55 }),
 			Parent = self.itemsFrame,
 		})
 		-- Cascade in with overshoot
@@ -231,11 +230,11 @@ function Menu.setItems(self: Menu, items: { Item })
 		end
 		bar.MouseEnter:Connect(function()
 			if item.disabled or self.selected == item.id then return end
-			tween(bar, 0.12, { Size = UDim2.new(if compact then 1 else 0.88, 0, 0, h), BackgroundTransparency = 0 })
+			tween(bar, 0.12, { Size = UDim2.new(if compact then 1 else 0.88, 0, 0, h), BackgroundColor3 = Color3.fromRGB(64, 58, 70) })
 		end)
 		bar.MouseLeave:Connect(function()
 			if item.disabled or self.selected == item.id then return end
-			tween(bar, 0.15, { Size = UDim2.new(if compact then 1 else 0.82, 0, 0, h), BackgroundTransparency = 0.08 })
+			tween(bar, 0.15, { Size = UDim2.new(if compact then 1 else 0.82, 0, 0, h), BackgroundColor3 = Theme.inkSoft })
 		end)
 		bar.Activated:Connect(function()
 			if item.disabled then return end
@@ -259,12 +258,10 @@ function Menu.select(self: Menu, id: string?)
 		local accent = if item and item.accent then Theme.pop else Theme.cream
 		tween(bar, 0.18, {
 			Size = UDim2.new(if compact then 1 else (if on then 0.95 else 0.82), 0, 0, h),
-			BackgroundColor3 = if on then accent else Theme.ink,
-			BackgroundTransparency = if on then 0 else 0.08,
+			BackgroundColor3 = if on then accent else Theme.inkSoft,
+			BackgroundTransparency = 0,
 			TextColor3 = if on then Theme.ink else (if item and item.disabled then Theme.creamDark else Theme.cream),
 		}, Enum.EasingStyle.Back)
-		local grad = bar:FindFirstChildOfClass("UIGradient")
-		if grad then grad.Enabled = not on end
 	end
 end
 
@@ -334,6 +331,7 @@ function Menu.button(parent: Instance, text: string, fill: Color3, onClick: () -
 		Make("UIStroke", { Color = Theme.ink, Thickness = 2.5 }),
 	}
 	if props then for k, v in props do if typeof(k) == "number" then table.insert(p, v) else p[k] = v end end end
+	p.Parent = parent
 	local b = Make.button(text, fill, function()
 		play(SOUND_SELECT, 0.5)
 		onClick()
