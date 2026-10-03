@@ -25,19 +25,6 @@ export type ColorPicker = typeof(setmetatable({} :: {
 }, ColorPicker))
 
 local RING_SEGMENTS = 36
-local RING_SIZE = 150
-
-local function slider(parent: Instance, label: string, order: number): (TextButton, Frame)
-	Make.label(label, 11, { TextColor3 = Theme.textDim, Size = UDim2.new(1, 0, 0, 14), LayoutOrder = order, Parent = parent })
-	local track = Make("TextButton", {
-		Text = "", AutoButtonColor = false, BackgroundColor3 = Theme.bg, Size = UDim2.new(1, 0, 0, 14), LayoutOrder = order + 1,
-		Make.corner(UDim.new(0.5, 0)), Parent = parent,
-	})
-	local fill = Make("Frame", { BackgroundColor3 = Theme.accent2, Size = UDim2.new(1, 0, 1, 0), Make.corner(UDim.new(0.5, 0)), Parent = track })
-	local knob = Make("Frame", { BackgroundColor3 = Theme.text, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(1, 0, 0.5, 0), Size = UDim2.fromOffset(16, 16), ZIndex = 2, Make.corner(UDim.new(0.5, 0)), Make("UIStroke", { Color = Theme.bg, Thickness = 2 }), Parent = fill })
-	knob.Name = "Knob"
-	return track, fill
-end
 
 function ColorPicker.new(parent: Instance, initial: Color3, onChange: (Color3) -> ()): ColorPicker
 	local self = setmetatable({}, ColorPicker)
@@ -47,50 +34,66 @@ function ColorPicker.new(parent: Instance, initial: Color3, onChange: (Color3) -
 
 	self.frame = Make("Frame", {
 		BackgroundColor3 = Theme.panel, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y,
-		Make.corner(), Make.pad(10), Make.list(nil, 6, Enum.HorizontalAlignment.Center), Parent = parent,
+		Make.corner(), Make.pad(10), Make.list(nil, 8, Enum.HorizontalAlignment.Center), Parent = parent,
 	})
 
 	-- Hue ring
+	local ringSize = 190
 	self.ring = Make("TextButton", {
-		Text = "", AutoButtonColor = false, BackgroundTransparency = 1, Size = UDim2.fromOffset(RING_SIZE, RING_SIZE), LayoutOrder = 1, Parent = self.frame,
+		Text = "", AutoButtonColor = false, BackgroundTransparency = 1, Size = UDim2.fromOffset(ringSize, ringSize), LayoutOrder = 1, Parent = self.frame,
 	}) :: any
-	local radius = RING_SIZE / 2 - 10
+	local radius = ringSize / 2 - 11
 	for i = 0, RING_SEGMENTS - 1 do
 		local a = i / RING_SEGMENTS * math.pi * 2
 		Make("Frame", {
 			BackgroundColor3 = Color3.fromHSV(i / RING_SEGMENTS, 1, 1),
 			AnchorPoint = Vector2.new(0.5, 0.5),
 			Position = UDim2.new(0.5, math.cos(a) * radius, 0.5, math.sin(a) * radius),
-			Size = UDim2.fromOffset(2 * math.pi * radius / RING_SEGMENTS + 2, 18),
+			Size = UDim2.fromOffset(2 * math.pi * radius / RING_SEGMENTS + 2, 20),
 			Rotation = math.deg(a) + 90,
 			BorderSizePixel = 0,
 			Parent = self.ring,
 		})
 	end
-	self.preview = Make("Frame", {
-		BackgroundColor3 = initial, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.fromOffset(RING_SIZE - 56, RING_SIZE - 56), Make.corner(UDim.new(0.5, 0)),
-		Make("UIStroke", { Color = Theme.text, Thickness = 2 }), Parent = self.ring,
-	})
 	local hueKnob = Make("Frame", {
-		BackgroundColor3 = Theme.text, AnchorPoint = Vector2.new(0.5, 0.5), Size = UDim2.fromOffset(14, 14), ZIndex = 3,
+		BackgroundColor3 = Theme.text, AnchorPoint = Vector2.new(0.5, 0.5), Size = UDim2.fromOffset(16, 16), ZIndex = 3,
 		Make.corner(UDim.new(0.5, 0)), Make("UIStroke", { Color = Theme.bg, Thickness = 2 }), Parent = self.ring,
 	})
-	hueKnob.Name = "HueKnob"
 
-	self.satTrack, self.satFill = slider(self.frame, "Saturation", 10)
-	self.valTrack, self.valFill = slider(self.frame, "Brightness", 20)
+	-- Saturation / brightness square inside the ring (Clip Studio style):
+	-- white -> hue left to right, then transparent -> black top to bottom.
+	local sq = math.floor((ringSize - 56) / math.sqrt(2))
+	local svBase = Make("TextButton", {
+		Text = "", AutoButtonColor = false, BackgroundColor3 = Color3.new(1, 1, 1),
+		AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(sq, sq), ZIndex = 2,
+		Make.corner(UDim.new(0, 4)), Make("UIStroke", { Color = Theme.bg, Thickness = 2 }), Parent = self.ring,
+	})
+	local hueGrad = Make("UIGradient", { Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.fromHSV(self.h, 1, 1)), Parent = svBase })
+	local svDark = Make("Frame", {
+		BackgroundColor3 = Color3.new(0, 0, 0), Size = UDim2.fromScale(1, 1), ZIndex = 3, Make.corner(UDim.new(0, 4)), Parent = svBase,
+	})
+	Make("UIGradient", { Color = ColorSequence.new(Color3.new(0, 0, 0)), Transparency = NumberSequence.new(1, 0), Rotation = 90, Parent = svDark })
+	local svKnob = Make("Frame", {
+		BackgroundColor3 = Theme.text, AnchorPoint = Vector2.new(0.5, 0.5), Size = UDim2.fromOffset(14, 14), ZIndex = 4,
+		Make.corner(UDim.new(0.5, 0)), Make("UIStroke", { Color = Theme.bg, Thickness = 2 }), Parent = svBase,
+	})
+	-- Current colour swatch
+	self.preview = Make("Frame", {
+		BackgroundColor3 = initial, Size = UDim2.new(1, 0, 0, 22), LayoutOrder = 2, Make.corner(UDim.new(0, 6)),
+		Make("UIStroke", { Color = Theme.text, Thickness = 1, Transparency = 0.5 }), Parent = self.frame,
+	})
+	-- Keep the type's slider fields pointing at something harmless
+	self.satTrack, self.satFill = svBase, svDark
+	self.valTrack, self.valFill = svBase, svDark
 
-	local draggingHue, draggingSat, draggingVal = false, false, false
+	local draggingHue, draggingSV = false, false
 	local function apply()
 		local color = Color3.fromHSV(self.h, self.s, self.v)
 		self.preview.BackgroundColor3 = color
-		self.satFill.Size = UDim2.new(self.s, 0, 1, 0)
-		self.valFill.Size = UDim2.new(self.v, 0, 1, 0)
-		self.satFill.BackgroundColor3 = Color3.fromHSV(self.h, 1, 1)
-		self.valFill.BackgroundColor3 = Color3.fromHSV(self.h, self.s, 1)
+		hueGrad.Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.fromHSV(self.h, 1, 1))
 		local a = self.h * math.pi * 2
 		hueKnob.Position = UDim2.new(0.5, math.cos(a) * radius, 0.5, math.sin(a) * radius)
+		svKnob.Position = UDim2.fromScale(self.s, 1 - self.v)
 		self.onChange(color)
 	end
 	local function hueFrom(pos: Vector2)
@@ -101,23 +104,24 @@ function ColorPicker.new(parent: Instance, initial: Color3, onChange: (Color3) -
 		self.h = a / (math.pi * 2)
 		apply()
 	end
-	local function frac(track: GuiObject, x: number): number
-		return math.clamp((x - track.AbsolutePosition.X) / math.max(track.AbsoluteSize.X, 1), 0, 1)
+	local function svFrom(pos: Vector2)
+		local p, sz = svBase.AbsolutePosition, svBase.AbsoluteSize
+		self.s = math.clamp((pos.X - p.X) / math.max(sz.X, 1), 0, 1)
+		self.v = 1 - math.clamp((pos.Y - p.Y) / math.max(sz.Y, 1), 0, 1)
+		apply()
 	end
 	local function isPress(input: InputObject): boolean
 		return input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch
 	end
 	self.ring.InputBegan:Connect(function(input) if isPress(input) then draggingHue = true hueFrom(Vector2.new(input.Position.X, input.Position.Y)) end end)
-	self.satTrack.InputBegan:Connect(function(input) if isPress(input) then draggingSat = true self.s = frac(self.satTrack, input.Position.X) apply() end end)
-	self.valTrack.InputBegan:Connect(function(input) if isPress(input) then draggingVal = true self.v = frac(self.valTrack, input.Position.X) apply() end end)
+	svBase.InputBegan:Connect(function(input) if isPress(input) then draggingSV = true svFrom(Vector2.new(input.Position.X, input.Position.Y)) end end)
 	table.insert(self.connections, UserInputService.InputChanged:Connect(function(input)
 		if input.UserInputType ~= Enum.UserInputType.MouseMovement and input.UserInputType ~= Enum.UserInputType.Touch then return end
-		if draggingHue then hueFrom(Vector2.new(input.Position.X, input.Position.Y))
-		elseif draggingSat then self.s = frac(self.satTrack, input.Position.X) apply()
-		elseif draggingVal then self.v = frac(self.valTrack, input.Position.X) apply() end
+		local pos = Vector2.new(input.Position.X, input.Position.Y)
+		if draggingSV then svFrom(pos) elseif draggingHue then hueFrom(pos) end
 	end))
 	table.insert(self.connections, UserInputService.InputEnded:Connect(function(input)
-		if isPress(input) then draggingHue, draggingSat, draggingVal = false, false, false end
+		if isPress(input) then draggingHue, draggingSV = false, false end
 	end))
 	apply()
 	return self
@@ -126,8 +130,6 @@ end
 function ColorPicker.set(self: ColorPicker, color: Color3)
 	self.h, self.s, self.v = color:ToHSV()
 	self.preview.BackgroundColor3 = color
-	self.satFill.Size = UDim2.new(self.s, 0, 1, 0)
-	self.valFill.Size = UDim2.new(self.v, 0, 1, 0)
 end
 
 function ColorPicker.destroy(self: ColorPicker)

@@ -168,10 +168,16 @@ function AvatarStage.update(self: AvatarStage, dt: number)
 		local eye = Vector3.new(math.sin(self.angle) * r, 4.2, math.cos(self.angle) * r)
 		self.camera.CFrame = CFrame.lookAt(eye, Vector3.new(0, 2.6, 0))
 	else
+		-- Low three-quarter hero angle that pulls back as the lineup grows,
+		-- with a very slow drift so it never feels frozen.
+		self.angle += dt * 0.05
 		local total = math.max(#self.order, 1)
 		local width = total * 4.5
-		local dist = math.max(14, width * 0.9)
-		self.camera.CFrame = CFrame.lookAt(Vector3.new(0, 4.5, dist), Vector3.new(0, 2.8, 0))
+		local dist = math.max(13, width * 0.95)
+		local sway = math.sin(self.angle) * 0.12
+		local eye = Vector3.new(dist * (0.55 + sway), 3.2 + total * 0.15, dist * 0.85)
+		self.camera.CFrame = CFrame.lookAt(eye, Vector3.new(0, 2.6, 0))
+		self.camera.FieldOfView = math.clamp(34 + total * 1.5, 34, 50)
 	end
 end
 

@@ -7,7 +7,8 @@
 		w = number,                  -- outline width in canvas pixels, relative to a 1000px canvas
 		a = number?,                 -- opacity 0.05..1 (default 1)
 		s = boolean?,                -- paths only: soft edge (airbrush)
-		f = boolean?,                -- shapes only: filled instead of outlined
+		f = boolean?,                -- shapes only: has a fill
+		fc = {r, g, b}?,             -- shapes only: fill colour (defaults to c); outline stays c
 		p = { x1, y1, x2, y2, ... }  -- normalized 0..1 coordinates, flat array
 		                             -- paths: polyline; shapes: two opposite corners; bg: unused
 	}
@@ -16,7 +17,7 @@ local Config = require(script.Parent.Config)
 
 local Strokes = {}
 
-export type Stroke = { t: string?, c: { number }, w: number, a: number?, s: boolean?, f: boolean?, p: { number } }
+export type Stroke = { t: string?, c: { number }, w: number, a: number?, s: boolean?, f: boolean?, fc: { number }?, p: { number } }
 
 local KINDS = { p = true, r = true, c = true, bg = true }
 
@@ -58,7 +59,11 @@ function Strokes.sanitizeOne(s: any): Stroke?
 	if #points < 2 then
 		return nil
 	end
-	return { t = kind, c = color, w = width, a = alpha, s = if kind == "p" and soft then true else nil, f = if kind ~= "p" then s.f == true else nil, p = points }
+	local fillColor = nil
+	if kind ~= "p" and typeof(s.fc) == "table" then
+		fillColor = { clamp01(tonumber(s.fc[1]) or 0), clamp01(tonumber(s.fc[2]) or 0), clamp01(tonumber(s.fc[3]) or 0) }
+	end
+	return { t = kind, c = color, w = width, a = alpha, s = if kind == "p" and soft then true else nil, f = if kind ~= "p" then s.f == true else nil, fc = fillColor, p = points }
 end
 
 -- Returns a sanitized copy of a stroke list, or nil if it's garbage.
@@ -75,7 +80,7 @@ function Strokes.sanitize(raw: any): { Stroke }?
 end
 
 function Strokes.copy(s: Stroke): Stroke
-	return { t = s.t, c = table.clone(s.c), w = s.w, a = s.a, s = s.s, f = s.f, p = table.clone(s.p) }
+	return { t = s.t, c = table.clone(s.c), w = s.w, a = s.a, s = s.s, f = s.f, fc = if s.fc then table.clone(s.fc) else nil, p = table.clone(s.p) }
 end
 
 -- Geometry helpers used by the client's transform tool.

@@ -39,6 +39,7 @@ export type Canvas = typeof(setmetatable({} :: {
 	startX: number, startY: number, lastX: number, lastY: number,
 	current: Strokes.Stroke?,
 	preview: { GuiObject },
+	previewTarget: Frame?,
 	selection: { number },
 	selBox: { number }?, -- minX,minY,maxX,maxY at gesture start
 	snapshot: { Strokes.Stroke }?, -- copies of selected strokes at gesture start
@@ -87,6 +88,7 @@ function Canvas.new(parent: Instance, editable: boolean): Canvas
 	self.startX, self.startY, self.lastX, self.lastY = 0, 0, 0, 0
 	self.current = nil
 	self.preview = {}
+	self.previewTarget = nil
 	self.selection = {}
 	self.selBox = nil
 	self.snapshot = nil
@@ -149,16 +151,17 @@ function Canvas.drawShape(self: Canvas, into: Frame, stroke: Strokes.Stroke, z: 
 	f.Size = UDim2.fromScale(maxX - minX, maxY - minY)
 	f.ZIndex = z or 1
 	if stroke.f then
-		f.BackgroundColor3 = color
+		f.BackgroundColor3 = if stroke.fc then Strokes.toColor3(stroke.fc) else color
 		f.BackgroundTransparency = 1 - (stroke.a or 1)
 	else
 		f.BackgroundTransparency = 1
-		local outline = Instance.new("UIStroke")
-		outline.Color = color
-		outline.Thickness = wpx
-		outline.Transparency = 1 - (stroke.a or 1)
-		outline.Parent = f
 	end
+	-- Outline always drawn in the stroke colour (fill never erases it)
+	local outline = Instance.new("UIStroke")
+	outline.Color = color
+	outline.Thickness = wpx
+	outline.Transparency = 1 - (stroke.a or 1)
+	outline.Parent = f
 	if stroke.t == "c" then
 		local corner = Instance.new("UICorner")
 		corner.CornerRadius = UDim.new(0.5, 0)
@@ -184,18 +187,45 @@ function Canvas.renderStroke(self: Canvas, stroke: Strokes.Stroke, into: Frame, 
 	local w = stroke.w + (if widthBoost then widthBoost * 1000 / math.max(self:pixelsPerUnit(), 1) else 0)
 	local alpha = if colorOverride then 1 else (stroke.a or 1)
 	local p = stroke.p
-	-- Airbrush: three concentric passes, wide and faint to narrow and solid.
-	local passes = if stroke.s and not colorOverride then { { 1, 0.25 }, { 0.6, 0.45 }, { 0.3, 0.8 } } else { { 1, 1 } }
+	-- Airbrush: many concentric passes of equal light opacity, stepping from full
+	-- width to a quarter width, so the edge grades smoothly and the centre builds
+	-- up without a hard core line.
+	local passes
+	if stroke.s and not colorOverride then
+		passes = {}
+		local n = 8
+		for i = 1, n do
+			local frac = 1 - (i - 1) / n * 0.75
+			table.insert(passes, { frac, 0.28 })
+		end
+	else
+		passes = { { 1, 1 } }
+	end
 	for _, pass in passes do
 		local pw, pa = w * pass[1], alpha * pass[2]
+		-- Segments are drawn opaque into a group and the GROUP gets the opacity,
+		-- so overlapping joints never stack into a dotted pattern.
+		local target = Canvas.groupFor(into, pa, z)
 		if #p == 2 then
-			self:drawSegment(into, color, pw, p[1], p[2], p[1], p[2], z, pa)
+			self:drawSegment(target, color, pw, p[1], p[2], p[1], p[2], z, 1)
 		else
 			for i = 1, #p - 3, 2 do
-				self:drawSegment(into, color, pw, p[i], p[i + 1], p[i + 2], p[i + 3], z, pa)
+				self:drawSegment(target, color, pw, p[i], p[i + 1], p[i + 2], p[i + 3], z, 1)
 			end
 		end
 	end
+end
+
+-- A full-size CanvasGroup with the given opacity, or the plain parent when opaque.
+function Canvas.groupFor(into: Frame, alpha: number, z: number?): Frame
+	if alpha >= 0.995 then return into end
+	local g = Instance.new("CanvasGroup")
+	g.BackgroundTransparency = 1
+	g.Size = UDim2.fromScale(1, 1)
+	g.GroupTransparency = 1 - alpha
+	g.ZIndex = z or 1
+	g.Parent = into
+	return g :: any
 end
 
 function Canvas.render(self: Canvas)
@@ -488,8 +518,13 @@ function Canvas.fillAt(self: Canvas, x: number, y: number)
 	local color = Strokes.fromColor3(self.color)
 	if idx then
 		local s = self.strokes[idx]
-		if s.t == "r" or s.t == "c" then s.f = true end
-		s.c = color
+		if s.t == "r" or s.t == "c" then
+			-- fill the inside, keep the outline
+			s.f = true
+			s.fc = color
+		else
+			s.c = color
+		end
 	else
 		local kept = {}
 		for _, s in self.strokes do if s.t ~= "bg" then table.insert(kept, s) end end
@@ -510,6 +545,10 @@ end
 function Canvas.clearPreview(self: Canvas)
 	for _, f in self.preview do f:Destroy() end
 	self.preview = {}
+	if self.previewTarget and self.previewTarget ~= self.layer and self.previewTarget ~= self.overlay then
+		self.previewTarget:Destroy()
+	end
+	self.previewTarget = nil
 end
 
 function Canvas.strokeColor(self: Canvas): Color3
@@ -566,7 +605,9 @@ function Canvas.startDrawing(self: Canvas)
 		self.gesture = "draw"
 		local alpha = if tool == "eraser" then 1 else self.opacity
 		self.current = { t = "p", c = Strokes.fromColor3(self:strokeColor()), w = self.width, a = alpha, s = if tool == "airbrush" then true else nil, p = { x, y } }
-		table.insert(self.preview, self:drawSegment(self.layer, self:strokeColor(), self.width, x, y, x, y, nil, if tool == "airbrush" then alpha * 0.5 else alpha))
+		-- preview goes into one group so it looks like the final stroke while drawing
+		self.previewTarget = Canvas.groupFor(self.layer, if tool == "airbrush" then alpha * 0.55 else alpha)
+		table.insert(self.preview, self:drawSegment(self.previewTarget, self:strokeColor(), if tool == "airbrush" then self.width * 0.8 else self.width, x, y, x, y, nil, 1))
 	elseif tool == "lasso" then
 		self.gesture = "lasso"
 		self.current = { t = "p", c = Strokes.fromColor3(Theme.accent2), w = 3, p = { x, y } }
@@ -593,11 +634,12 @@ function Canvas.moveGesture(self: Canvas, pos: Vector2)
 		table.insert(cur.p, x)
 		table.insert(cur.p, y)
 		local color = if g == "lasso" then Theme.accent2 else self:strokeColor()
-		local alpha = if g == "lasso" then 1 elseif cur.s then (cur.a or 1) * 0.5 else (cur.a or 1)
-		table.insert(self.preview, self:drawSegment(if g == "lasso" then self.overlay else self.layer, color, cur.w, lx, ly, x, y, if g == "lasso" then 7 else nil, alpha))
+		local target = if g == "lasso" then self.overlay else (self.previewTarget or self.layer)
+		local pw = if cur.s then cur.w * 0.8 else cur.w
+		table.insert(self.preview, self:drawSegment(target, color, pw, lx, ly, x, y, if g == "lasso" then 7 else nil, 1))
 	elseif g == "shape" then
 		self:clearPreview()
-		local shape = { t = if self.tool == "rect" then "r" else "c", c = Strokes.fromColor3(self.color), w = self.width, a = self.opacity, f = self.filled, p = { self.startX, self.startY, x, y } }
+		local shape = { t = if self.tool == "rect" then "r" else "c", c = Strokes.fromColor3(self.color), w = self.width, a = self.opacity, f = self.filled, fc = if self.filled then Strokes.fromColor3(self.color) else nil, p = { self.startX, self.startY, x, y } }
 		table.insert(self.preview, self:drawShape(self.overlay, shape, 7))
 	elseif g == "move" then
 		local dx, dy = x - self.startX, y - self.startY
@@ -686,7 +728,7 @@ function Canvas.endGesture(self: Canvas)
 	elseif g == "shape" then
 		self:clearPreview()
 		if math.abs(x - self.startX) > 0.01 and math.abs(y - self.startY) > 0.01 then
-			local shape = { t = if self.tool == "rect" then "r" else "c", c = Strokes.fromColor3(self.color), w = self.width, a = self.opacity, f = self.filled, p = { self.startX, self.startY, x, y } }
+			local shape = { t = if self.tool == "rect" then "r" else "c", c = Strokes.fromColor3(self.color), w = self.width, a = self.opacity, f = self.filled, fc = if self.filled then Strokes.fromColor3(self.color) else nil, p = { self.startX, self.startY, x, y } }
 			self:commit(shape)
 			if self.mirror then self:commit(Strokes.mirrorX(shape)) end
 		end

@@ -211,6 +211,20 @@ If Studio reports that HTTP requests are not enabled, turn on
 - Teleports do not work in Studio, so matches run inside the hub server there. On a published
   place each party gets its own server.
 
+### Screenshot tour (for sending feedback)
+
+In Studio, press **F8** during a play test: after a 10-second countdown the client walks
+every screen with sample data, 5 seconds each, with a label in the corner. Pair it with:
+
+```powershell
+.\scripts\capture.ps1 -Name before      # 15 s countdown, then 20 screen grabs on the same cadence
+.\scripts\capture.ps1 -Name after
+.\scripts\compare.ps1 -Before before -After after
+```
+
+Each run writes `screenshots\<name>\sheet.png` (a labelled contact sheet) and copies the two
+newest Studio logs beside it. The compare script puts two sheets side by side.
+
 ### After either option
 
 Enable **Voice Chat** in Game Settings → Communication (needed for live dubbing; everything

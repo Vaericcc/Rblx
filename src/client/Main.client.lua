@@ -21,6 +21,7 @@ local Hud = require(UI.Hud)
 local Responsive = require(UI.Responsive)
 local Controls = require(UI.Controls)
 
+local AvatarStage = require(UI.AvatarStage)
 local Screens = script.Parent.Screens
 local Lobby = require(Screens.Lobby)
 local TextPhases = require(Screens.TextPhases)
@@ -131,10 +132,12 @@ function togglePlayersMenu()
 		return
 	end
 	local m: Menu.Menu
+	matchRoot.Visible = false
 	m = Menu.open({
 		title = "PAUSED",
 		parent = gui,
-		dim = 0.6,
+		dim = 0.5,
+		stage = "solo",
 		items = {
 			{ id = "resume", label = "RESUME", onClick = function() togglePlayersMenu() end },
 			{ id = "players", label = "PLAYERS", onClick = function()
@@ -163,7 +166,10 @@ function togglePlayersMenu()
 				togglePlayersMenu()
 			end },
 		},
-		onClose = function() pauseMenu = nil end,
+		onClose = function()
+			pauseMenu = nil
+			if inMatch then matchRoot.Visible = true end
+		end,
 	})
 	pauseMenu = m
 end
@@ -362,6 +368,24 @@ function setOverlay(message: string?)
 			task.wait(0.5)
 		end
 	end)
+	-- The party (or just you) on stage, right side
+	local stageHolder = Make("Frame", {
+		BackgroundTransparency = 1, ZIndex = 201,
+		Position = if compact then UDim2.fromScale(0.5, 0.62) else UDim2.fromScale(0.68, 0.55),
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Size = if compact then UDim2.fromScale(1, 0.55) else UDim2.fromScale(0.6, 0.9),
+		Parent = overlay,
+	})
+	local stage = AvatarStage.new(stageHolder, { mode = "party" })
+	local members = ctx.partyMembers()
+	local n = 0
+	for _, m in members do
+		local p = Players:GetPlayerByUserId(m.userId)
+		if p then n += 1 task.delay(0.3 * n, function() if stageHolder.Parent then stage:addPlayer(p) end end) end
+	end
+	if n == 0 then stage:addPlayer(player) end
+	overlay.Destroying:Connect(function() stage:destroy() end)
+
 	-- MENU button at the side (opens settings / leave)
 	Make.button("MENU", Theme.cream, function() togglePlayersMenu() end, {
 		Font = Theme.fontDisplay, TextSize = 22, TextColor3 = Theme.ink, AnchorPoint = Vector2.new(1, 0),
@@ -377,6 +401,7 @@ local handlers: { [string]: (any) -> () } = {
 	[Net.S2C.LobbyInit] = function(data)
 		lobbyState.init = data
 		lobby:setInit(data)
+		if not data.isMatchServer and not inMatch then setOverlay(nil) end
 		if data.isMatchServer then
 			-- We're on a private match server: no hub UI, just wait for the round.
 			setInMatch(true)
@@ -436,6 +461,8 @@ Net.remote.OnClientEvent:Connect(function(action: string, data: any)
 	if handler then handler(data) end
 end)
 
+-- Loading from the first frame until the hub answers
+setOverlay("Loading StoryDub")
 Net.remote:FireServer(Net.C2S.Hello)
 
 -- Resize / rotate: rescale, and rebuild the chrome if the layout class changed.
@@ -456,6 +483,36 @@ UserInputService.InputBegan:Connect(function(input, processed)
 		togglePlayersMenu()
 	end
 end)
+
+-- F8 in Studio: screenshot tour (see scripts/capture.ps1)
+if game:GetService("RunService"):IsStudio() then
+	local Tour = require(Screens.Tour)
+	local touring = false
+	UserInputService.InputBegan:Connect(function(input, processed)
+		if processed or input.KeyCode ~= Enum.KeyCode.F8 or touring then return end
+		touring = true
+		local camera = workspace.CurrentCamera
+		local savedType = camera and camera.CameraType
+		task.spawn(function()
+			local ok, err = pcall(Tour.run, {
+				mount = mount, unmount = unmount, hud = hud, lobby = lobby, setOverlay = setOverlay,
+				togglePause = togglePlayersMenu, setInMatch = setInMatch, gui = gui,
+				screens = { premise = TextPhases.premise, cast = TextPhases.cast, claim = Claim.show, draw = Draw.show, dub = Dub.show, showcase = Showcase.show, vote = Vote.show, results = Results.show },
+				currentScreen = function() return current end,
+				setCamera = function(cf: CFrame)
+					local cam = workspace.CurrentCamera
+					if cam then cam.CameraType = Enum.CameraType.Scriptable cam.CFrame = cf end
+				end,
+				resetCamera = function()
+					local cam = workspace.CurrentCamera
+					if cam then cam.CameraType = savedType or Enum.CameraType.Custom end
+				end,
+			})
+			if not ok then warn("TOUR failed:", err) end
+			touring = false
+		end)
+	end)
+end
 
 player.CharacterAdded:Connect(function()
 	task.wait(0.5)
