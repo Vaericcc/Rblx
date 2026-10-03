@@ -123,26 +123,30 @@ function AvatarStage.new(parent: Instance, opts: { mode: string }): AvatarStage
 	floor.Parent = self.world
 
 	if self.mode == "lean" then
-		-- The wall: a tall cream slab with the pink slash, standing just behind
-		-- and to the avatar's left so the shoulder rests on it.
+		-- The wall stands BEHIND the avatar (negative z; the camera sits on +z and
+		-- the avatar faces it), angled a little so the lit face reads as a corner.
+		self.frame.Ambient = Color3.fromRGB(150, 146, 156)
+		self.frame.LightColor = Color3.fromRGB(255, 244, 228)
+		self.frame.LightDirection = Vector3.new(-0.6, -1, -1)
+		local wallCF = CFrame.new(-2.5, 8, -1.6) * CFrame.Angles(0, math.rad(18), 0)
 		local wall = Instance.new("Part")
 		wall.Anchored = true
-		wall.Size = Vector3.new(14, 16, 1.2)
-		wall.CFrame = CFrame.new(-1.2, 8, 1.9) * CFrame.Angles(0, math.rad(-22), 0)
+		wall.Size = Vector3.new(18, 16, 1.2)
+		wall.CFrame = wallCF
 		wall.Color = Theme.creamDark
 		wall.Material = Enum.Material.Concrete
 		wall.Parent = self.world
 		local stripe = Instance.new("Part")
 		stripe.Anchored = true
-		stripe.Size = Vector3.new(1.6, 16.2, 0.1)
-		stripe.CFrame = wall.CFrame * CFrame.new(-3.2, 0, -0.66) * CFrame.Angles(0, 0, math.rad(12))
+		stripe.Size = Vector3.new(1.8, 16.2, 0.1)
+		stripe.CFrame = wallCF * CFrame.new(-4.5, 0, 0.66) * CFrame.Angles(0, 0, math.rad(12))
 		stripe.Color = Theme.pop
 		stripe.Material = Enum.Material.SmoothPlastic
 		stripe.Parent = self.world
 		local skirting = Instance.new("Part")
 		skirting.Anchored = true
-		skirting.Size = Vector3.new(14, 0.9, 1.3)
-		skirting.CFrame = wall.CFrame * CFrame.new(0, -7.55, 0)
+		skirting.Size = Vector3.new(18, 0.9, 1.4)
+		skirting.CFrame = wallCF * CFrame.new(0, -7.55, 0)
 		skirting.Color = Theme.ink
 		skirting.Material = Enum.Material.SmoothPlastic
 		skirting.Parent = self.world
@@ -162,8 +166,9 @@ function AvatarStage.slotCFrame(self: AvatarStage, index: number, total: number)
 		return CFrame.new(0, 3, 0) * CFrame.Angles(0, math.pi, 0)
 	end
 	if self.mode == "lean" then
-		-- shoulder against the wall: body tilted back toward it, feet a little forward
-		return CFrame.new(0, 2.85, 0) * CFrame.Angles(0, math.pi + math.rad(18), 0) * CFrame.Angles(math.rad(-8), 0, math.rad(6))
+		-- facing the camera (+z), turned so the left shoulder rests on the wall
+		-- behind, upper body tilted back into it, feet a little forward
+		return CFrame.new(0, 2.85, 0.4) * CFrame.Angles(0, math.pi - math.rad(20), 0) * CFrame.Angles(math.rad(8), 0, math.rad(7))
 	end
 	local spacing = 4.5
 	local x = (index - (total + 1) / 2) * spacing
@@ -235,8 +240,8 @@ function AvatarStage.update(self: AvatarStage, dt: number)
 		-- camera parked front-right, slightly low, with a barely-there drift
 		self.angle += dt * 0.35
 		local sway = math.sin(self.angle) * 0.25
-		local eye = Vector3.new(7.5 + sway, 3.4, 9.5)
-		self.camera.CFrame = CFrame.lookAt(eye, Vector3.new(0.2, 2.9, 0))
+		local eye = Vector3.new(5.5 + sway, 3.6, 10.5)
+		self.camera.CFrame = CFrame.lookAt(eye, Vector3.new(-0.3, 2.9, 0))
 		self.camera.FieldOfView = 38
 		-- breathing: chest rises, head nods a touch
 		local model = self.clones[Players.LocalPlayer.UserId]
