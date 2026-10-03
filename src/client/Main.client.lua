@@ -484,19 +484,20 @@ UserInputService.InputBegan:Connect(function(input, processed)
 	end
 end)
 
--- F8 in Studio: screenshot tour (see scripts/capture.ps1)
+-- Screenshot tour in Studio: press F8 or type /tour in chat (see scripts/capture.ps1)
 if game:GetService("RunService"):IsStudio() then
 	local Tour = require(Screens.Tour)
 	local touring = false
-	UserInputService.InputBegan:Connect(function(input, processed)
-		if processed or input.KeyCode ~= Enum.KeyCode.F8 or touring then return end
+	local function startTour()
+		if touring then return end
 		touring = true
 		local camera = workspace.CurrentCamera
 		local savedType = camera and camera.CameraType
 		task.spawn(function()
 			local ok, err = pcall(Tour.run, {
 				mount = mount, unmount = unmount, hud = hud, lobby = lobby, setOverlay = setOverlay,
-				togglePause = togglePlayersMenu, setInMatch = setInMatch, gui = gui,
+				togglePause = togglePlayersMenu, isPaused = function() return pauseMenu ~= nil end,
+				setInMatch = setInMatch, gui = gui,
 				screens = { premise = TextPhases.premise, cast = TextPhases.cast, claim = Claim.show, draw = Draw.show, dub = Dub.show, showcase = Showcase.show, vote = Vote.show, results = Results.show },
 				currentScreen = function() return current end,
 				setCamera = function(cf: CFrame)
@@ -511,7 +512,19 @@ if game:GetService("RunService"):IsStudio() then
 			if not ok then warn("TOUR failed:", err) end
 			touring = false
 		end)
+	end
+	UserInputService.InputBegan:Connect(function(input, processed)
+		if not processed and input.KeyCode == Enum.KeyCode.F8 then startTour() end
 	end)
+	pcall(function()
+		local TextChatService = game:GetService("TextChatService")
+		local cmd = Instance.new("TextChatCommand")
+		cmd.Name = "TourCommand"
+		cmd.PrimaryAlias = "/tour"
+		cmd.Triggered:Connect(function() startTour() end)
+		cmd.Parent = TextChatService
+	end)
+	print("[StoryDub] Tour ready: press F8 or type /tour")
 end
 
 player.CharacterAdded:Connect(function()

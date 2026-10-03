@@ -96,23 +96,36 @@ function Tour.run(api: any)
 		label.Text = ("TOUR  ·  %s"):format(step)
 		print("TOUR: " .. step)
 	end
+	-- Clean slate: nothing open, nothing paused, hub UI hidden, normal camera.
+	local function reset()
+		api.lobby:closeMenu()
+		if api.isPaused() then api.togglePause() end
+		api.setOverlay(nil)
+		api.unmount()
+		api.setInMatch(false)
+		api.lobby.root.Visible = true
+		api.resetCamera()
+	end
+	reset()
 	for i = Tour.COUNTDOWN, 1, -1 do
 		label.Text = ("TOUR starts in %d  ·  switch to this window"):format(i)
 		task.wait(1)
 	end
+	reset()
+	task.wait(0.5)
 
 	local project = sampleProject()
 	local room = sampleRoom()
 	local endsAt = function() return workspace:GetServerTimeNow() + 90 end
 	local function hold() task.wait(Tour.STEP_SECONDS) end
 
-	-- Hub shots
-	api.setInMatch(false)
-	api.lobby:closeMenu()
+	-- Hub shots (hub UI hidden so only the world shows)
+	api.lobby.root.Visible = false
 	api.setCamera(CFrame.lookAt(Vector3.new(0, 150, 150), Vector3.new(0, 0, 0))) say("hub overhead") hold()
 	api.setCamera(CFrame.lookAt(Vector3.new(0, 7, 14), Vector3.new(0, 10, -60))) say("hub from dais") hold()
 	api.setCamera(CFrame.lookAt(Vector3.new(0, 5, -40), Vector3.new(0, 8, -70))) say("hub gateway") hold()
 	api.resetCamera()
+	api.lobby.root.Visible = true
 
 	-- Menus
 	api.lobby.page = "join" api.lobby:openMenu() say("menu join") hold()
@@ -121,6 +134,7 @@ function Tour.run(api: any)
 	api.lobby.roomTab = "players" api.lobby:render() say("menu room players") hold()
 	api.lobby.page = "settings" api.lobby:render() say("menu settings") hold()
 	api.lobby:closeMenu() api.lobby:setRoom(nil)
+	task.wait(0.5)
 
 	-- Match screens
 	api.setInMatch(true)
@@ -157,7 +171,8 @@ function Tour.run(api: any)
 		awards = { { id = "funniest", name = "Funniest", emoji = "😂" }, { id = "best_art", name = "Best Art", emoji = "🎨" } }, endsAt = endsAt() }, nil)
 	say("results") hold()
 	api.togglePause() say("pause menu") hold()
-	api.togglePause()
+	if api.isPaused() then api.togglePause() end
+	task.wait(0.5)
 	api.unmount()
 	api.setInMatch(false)
 	say("done")
