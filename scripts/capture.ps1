@@ -68,8 +68,14 @@ function Newest-Log {
 # A new log file appears when Play starts, so re-pick the newest file while waiting.
 $log = Newest-Log
 if (-not $log) { Write-Error "No Studio log found. Is Studio running?"; exit 1 }
-$offset = $log.Length
-$started = Get-Date
+# The directory listing's size for a file Studio is still writing lags behind the
+# real end of the file, so measure through an open handle.
+function True-Length([string]$path) {
+  $fs = [System.IO.File]::Open($path, 'Open', 'Read', 'ReadWrite')
+  try { return $fs.Length } finally { $fs.Dispose() }
+}
+$offset = True-Length $log.FullName
+$started = (Get-Date).ToUniversalTime()
 $pending = New-Object System.Collections.Generic.Queue[string]
 
 function Pump-Log {
@@ -80,7 +86,7 @@ function Pump-Log {
     # beginning if it was created after this script started; an older file holds
     # TOUR lines from previous runs, which must be skipped.
     $script:log = $latest
-    $script:offset = if ($latest.CreationTime -gt $script:started) { 0 } else { $latest.Length }
+    $script:offset = if ($latest.CreationTime.ToUniversalTime() -gt $script:started) { 0 } else { True-Length $latest.FullName }
   }
   $fs = [System.IO.File]::Open($script:log.FullName, 'Open', 'Read', 'ReadWrite')
   try {
@@ -92,7 +98,17 @@ function Pump-Log {
   } finally { $fs.Dispose() }
   if ($n -le 0) { return }
   $text = [System.Text.Encoding]::UTF8.GetString($buf, 0, $n)
-  foreach ($m in [regex]::Matches($text, 'TOUR: ([^\r\n]+)')) { $pending.Enqueue($m.Groups[1].Value.Trim()) }
+  foreach ($line in ($text -split "[\r\n]+")) {
+    $m = [regex]::Match($line, 'TOUR: (.+)$')
+    if (-not $m.Success) { continue }
+    # Roblox log lines start with an ISO timestamp; drop lines from before this run.
+    $ts = [regex]::Match($line, '^(\d{4}-\d\d-\d\dT[\d:.]+Z)')
+    if ($ts.Success) {
+      $when = [DateTime]::Parse($ts.Groups[1].Value, $null, 'AdjustToUniversal')
+      if ($when -lt $script:started.AddSeconds(-2)) { continue }
+    }
+    $pending.Enqueue($m.Groups[1].Value.Trim())
+  }
 }
 
 function Next-Step([int]$timeoutSec) {
