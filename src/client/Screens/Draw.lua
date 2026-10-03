@@ -137,7 +137,12 @@ function Draw.show(container: Frame, data: any, ctx: any)
 		elseif stroke then stroke:Destroy() end
 	end
 
-	local sizeRow, setSizeLabel = slider(context, "Size", (canvas.width - Config.MIN_BRUSH) / (Config.MAX_BRUSH - Config.MIN_BRUSH), function(a)
+	-- Declared before the sliders so their callbacks can see them (a local isn't in
+	-- scope inside the statement that declares it).
+	local setSizeLabel: (string) -> () = function() end
+	local setOpacityLabel: (string) -> () = function() end
+	local sizeRow
+	sizeRow, setSizeLabel = slider(context, "Size", math.sqrt((canvas.width - Config.MIN_BRUSH) / (Config.MAX_BRUSH - Config.MIN_BRUSH)), function(a)
 		-- ease so small sizes get more travel
 		canvas.width = Config.MIN_BRUSH + (Config.MAX_BRUSH - Config.MIN_BRUSH) * a * a
 		setSizeLabel(("Size  %d"):format(math.floor(canvas.width + 0.5)))
@@ -145,7 +150,8 @@ function Draw.show(container: Frame, data: any, ctx: any)
 	end)
 	sizeRow.LayoutOrder = 2
 	setSizeLabel(("Size  %d"):format(canvas.width))
-	local opacityRow, setOpacityLabel = slider(context, "Opacity  100%", 1, function(a)
+	local opacityRow
+	opacityRow, setOpacityLabel = slider(context, "Opacity  100%", 1, function(a)
 		canvas.opacity = math.clamp(a, 0.05, 1)
 		setOpacityLabel(("Opacity  %d%%"):format(math.floor(canvas.opacity * 100 + 0.5)))
 		refreshPreview()

@@ -19,6 +19,9 @@ return {
 	creamDark = Color3.fromRGB(214, 206, 188),
 	pop = Color3.fromRGB(255, 70, 110),
 
+	-- menu sounds: paste uploaded sound asset IDs here (0 = silent)
+	sounds = { open = 0, select = 0 },
+
 	-- fonts
 	fontDisplay = Enum.Font.Bangers, -- headings, buttons, vertical titles
 	font = Enum.Font.GothamBold, -- small bold labels

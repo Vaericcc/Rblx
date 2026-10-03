@@ -49,12 +49,14 @@ export type Menu = typeof(setmetatable({} :: {
 	stage: AvatarStage.AvatarStage?,
 }, Menu))
 
-local SOUND_OPEN = "rbxasset://sounds/swoosh.wav"
-local SOUND_SELECT = "rbxasset://sounds/clickfast.wav"
+local SOUND_OPEN = "open"
+local SOUND_SELECT = "select"
 
-local function play(id: string, volume: number)
+local function play(name: string, volume: number)
+	local id = (Theme.sounds :: any)[name]
+	if not id or id == 0 then return end -- no sound configured yet
 	local s = Instance.new("Sound")
-	s.SoundId = id
+	s.SoundId = ("rbxassetid://%d"):format(id)
 	s.Volume = volume * Settings.get("masterVolume")
 	s.Parent = SoundService
 	s:Play()
