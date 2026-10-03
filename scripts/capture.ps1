@@ -69,12 +69,19 @@ function Newest-Log {
 $log = Newest-Log
 if (-not $log) { Write-Error "No Studio log found. Is Studio running?"; exit 1 }
 $offset = $log.Length
+$started = Get-Date
 $pending = New-Object System.Collections.Generic.Queue[string]
 
 function Pump-Log {
   # Read new bytes from the newest Studio log and queue every "TOUR: <step>" line.
   $latest = Newest-Log
-  if ($latest.FullName -ne $script:log.FullName) { $script:log = $latest; $script:offset = 0 }
+  if ($latest.FullName -ne $script:log.FullName) {
+    # Switched to a different log (Play started a new one). Only read it from the
+    # beginning if it was created after this script started; an older file holds
+    # TOUR lines from previous runs, which must be skipped.
+    $script:log = $latest
+    $script:offset = if ($latest.CreationTime -gt $script:started) { 0 } else { $latest.Length }
+  }
   $fs = [System.IO.File]::Open($script:log.FullName, 'Open', 'Read', 'ReadWrite')
   try {
     if ($fs.Length -lt $script:offset) { $script:offset = 0 }
@@ -105,8 +112,11 @@ Get-ChildItem $dir -Filter "shot_*.png" -ErrorAction SilentlyContinue | Remove-I
 
 Write-Host ("Tailing {0}" -f $log.Name)
 Write-Host ("Switch to Studio and press F8 (or type /tour). Waiting up to {0}s for the tour to start..." -f $WaitSeconds)
+# Wait for THIS run's start marker; anything else is a leftover from an earlier tour.
 $step = Next-Step $WaitSeconds
-if ($null -eq $step) { Write-Error "Tour never started (no 'TOUR:' line in the Studio log)."; exit 1 }
+while ($null -ne $step -and $step -ne "countdown") { Write-Host ("ignoring stale '{0}'" -f $step); $step = Next-Step $WaitSeconds }
+if ($null -eq $step) { Write-Error "Tour never started (no 'TOUR: countdown' line in the Studio log). Pull the latest code, then press F8 in the play window."; exit 1 }
+Write-Host "Tour started."
 
 $files = @(); $labels = @(); $bounds = $null
 while ($null -ne $step) {
