@@ -336,7 +336,24 @@ local overlayStyle: string? = nil
 -- big title and your avatar waiting against a wall at the side.
 function setOverlay(message: string?, style: string?)
 	if not message then
-		if overlay then overlay:Destroy() overlay = nil overlayLabel = nil overlayStyle = nil end
+		if overlay then
+			local old = overlay
+			overlay = nil overlayLabel = nil overlayStyle = nil
+			-- Out: text and avatar fade, the slash sweeps away, the ink lifts.
+			local IN = Enum.EasingDirection.In
+			for _, c in old:GetChildren() do
+				if c:IsA("TextLabel") or c:IsA("TextButton") then
+					TweenService:Create(c, TweenInfo.new(0.25, Enum.EasingStyle.Quint, IN), { TextTransparency = 1, BackgroundTransparency = 1 }):Play()
+				elseif c.Name == "Slash" then
+					TweenService:Create(c, TweenInfo.new(0.35, Enum.EasingStyle.Quint, IN), { Position = c.Position - UDim2.fromScale(0.9, 0) }):Play()
+				elseif c.Name == "StageHolder" then
+					local vp = c:FindFirstChildOfClass("ViewportFrame")
+					if vp then TweenService:Create(vp, TweenInfo.new(0.3, Enum.EasingStyle.Quint, IN), { ImageTransparency = 1 }):Play() end
+				end
+			end
+			TweenService:Create(old, TweenInfo.new(0.4, Enum.EasingStyle.Quint, IN), { BackgroundTransparency = 1 }):Play()
+			task.delay(0.42, function() old:Destroy() end)
+		end
 		return
 	end
 	if overlay and overlayLabel and overlayStyle == style then
@@ -350,21 +367,24 @@ function setOverlay(message: string?, style: string?)
 	overlay = Make("Frame", { BackgroundColor3 = Theme.ink, Size = UDim2.fromScale(1, 1), ZIndex = 200, Active = true, Parent = gui })
 	Make.coverInset(overlay, Responsive.inset())
 	-- the slash, as in every menu
-	Make("Frame", {
-		BackgroundColor3 = Theme.inkSoft, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.22, 0.5),
+	local slash = Make("Frame", {
+		Name = "Slash", BackgroundColor3 = Theme.inkSoft, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(-0.6, 0.5),
 		Size = UDim2.new(0.42, 0, 2.6, 0), Rotation = if compact then 0 else 14, ZIndex = 201, Parent = overlay,
 	})
-	Make.label(if join then "DUBBLE TAKE" else "LOADING", if compact then 44 elseif join then 84 else 96, {
-		Font = Theme.fontDisplay, TextColor3 = Theme.cream, TextXAlignment = Enum.TextXAlignment.Center, TextYAlignment = Enum.TextYAlignment.Center,
-		AnchorPoint = Vector2.new(0.5, 0.5), Rotation = if compact then 0 else -90,
-		Position = if compact then UDim2.new(0.5, 0, 0, 60) else UDim2.fromScale(0.07, 0.5),
-		Size = if compact then UDim2.new(1, -32, 0, 60) else UDim2.fromOffset(math.floor(Responsive.viewport().Y * 0.86), 120),
-		ZIndex = 202, Parent = overlay,
+	TweenService:Create(slash, TweenInfo.new(0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Position = UDim2.fromScale(0.22, 0.5) }):Play()
+	-- Compact: title top-left, text under it, avatar on the right half.
+	local title = Make.label(if join then "DUBBLE TAKE" else "LOADING", if compact then 40 elseif join then 84 else 96, {
+		Font = Theme.fontDisplay, TextColor3 = Theme.cream, TextXAlignment = if compact then Enum.TextXAlignment.Left else Enum.TextXAlignment.Center, TextYAlignment = Enum.TextYAlignment.Center,
+		AnchorPoint = if compact then Vector2.new(0, 0) else Vector2.new(0.5, 0.5), Rotation = if compact then 0 else -90,
+		Position = if compact then UDim2.new(0, 24, 0, 10) else UDim2.fromScale(0.07, 0.5),
+		Size = if compact then UDim2.new(0.5, 0, 0, 48) else UDim2.fromOffset(math.floor(Responsive.viewport().Y * 0.86), 120),
+		ZIndex = 202, TextTransparency = 1, Parent = overlay,
 	})
-	overlayLabel = Make.label(message, 20, {
-		Font = Theme.fontBody, TextColor3 = Theme.cream, TextXAlignment = Enum.TextXAlignment.Left,
-		Position = if compact then UDim2.new(0, 24, 0, 120) else UDim2.fromScale(0.18, 0.42),
-		Size = UDim2.new(0, 520, 0, 80), ZIndex = 202, Parent = overlay,
+	TweenService:Create(title, TweenInfo.new(0.5), { TextTransparency = 0 }):Play()
+	overlayLabel = Make.label(message, if compact then 17 else 20, {
+		Font = Theme.fontBody, TextColor3 = Theme.cream, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top,
+		Position = if compact then UDim2.new(0, 26, 0, 66) else UDim2.fromScale(0.18, 0.42),
+		Size = if compact then UDim2.new(0.45, 0, 0, 24) else UDim2.new(0, 520, 0, 80), ZIndex = 202, Parent = overlay,
 	})
 	-- animated dots
 	task.spawn(function()
@@ -379,27 +399,27 @@ function setOverlay(message: string?, style: string?)
 	if join then
 		-- Just you, waiting against a wall at the right edge of the screen
 		local stageHolder = Make("Frame", {
-			BackgroundTransparency = 1, ZIndex = 201,
-			Position = if compact then UDim2.fromScale(0.5, 0.64) else UDim2.fromScale(0.8, 0.56),
+			Name = "StageHolder", BackgroundTransparency = 1, ZIndex = 201,
+			Position = if compact then UDim2.fromScale(0.76, 0.55) else UDim2.fromScale(0.8, 0.56),
 			AnchorPoint = Vector2.new(0.5, 0.5),
-			Size = if compact then UDim2.fromScale(1, 0.6) else UDim2.fromScale(0.42, 0.92),
+			Size = if compact then UDim2.fromScale(0.5, 1) else UDim2.fromScale(0.42, 0.92),
 			Parent = overlay,
 		})
 		local stage = AvatarStage.new(stageHolder, { mode = "lean" })
 		overlay.Destroying:Connect(function() stage:destroy() end)
 		Make.label("write it  ·  draw it  ·  dub it", 18, {
 			Font = Theme.fontBody, TextColor3 = Theme.creamDark, TextXAlignment = Enum.TextXAlignment.Left,
-			Position = if compact then UDim2.new(0, 24, 0, 150) else UDim2.fromScale(0.18, 0.49),
-			Size = UDim2.new(0, 520, 0, 30), ZIndex = 202, Parent = overlay,
+			Position = if compact then UDim2.new(0, 26, 0, 94) else UDim2.fromScale(0.18, 0.49),
+			Size = if compact then UDim2.new(0.45, 0, 0, 24) else UDim2.new(0, 520, 0, 30), ZIndex = 202, Parent = overlay,
 		})
 		return
 	end
 	-- The party (or just you) on stage, right side
 	local stageHolder = Make("Frame", {
-		BackgroundTransparency = 1, ZIndex = 201,
-		Position = if compact then UDim2.fromScale(0.5, 0.62) else UDim2.fromScale(0.68, 0.55),
+		Name = "StageHolder", BackgroundTransparency = 1, ZIndex = 201,
+		Position = if compact then UDim2.fromScale(0.68, 0.6) else UDim2.fromScale(0.68, 0.55),
 		AnchorPoint = Vector2.new(0.5, 0.5),
-		Size = if compact then UDim2.fromScale(1, 0.55) else UDim2.fromScale(0.6, 0.9),
+		Size = if compact then UDim2.fromScale(0.64, 0.95) else UDim2.fromScale(0.6, 0.9),
 		Parent = overlay,
 	})
 	local stage = AvatarStage.new(stageHolder, { mode = "party" })

@@ -75,9 +75,9 @@ function Lobby.new(parent: Instance): Lobby
 		Make("UIStroke", { Color = Theme.cream, Thickness = 2 }),
 		Parent = self.root,
 	})
-	Make.label("STORY<font color=\"#ff466e\">DUB</font>", 30, {
+	Make.label("DUBBLE<font color=\"#ff466e\">TAKE</font>", 26, {
 		RichText = true, Font = Theme.fontDisplay, TextColor3 = Theme.cream,
-		Size = UDim2.fromOffset(140, touch), TextYAlignment = Enum.TextYAlignment.Center, LayoutOrder = 1, Parent = self.bar,
+		Size = UDim2.fromOffset(176, touch), TextYAlignment = Enum.TextYAlignment.Center, LayoutOrder = 1, Parent = self.bar,
 	})
 	self.pointsLabel = Make.label("", 14, {
 		TextColor3 = Theme.cream, Font = Theme.font, Size = UDim2.fromOffset(0, touch), AutomaticSize = Enum.AutomaticSize.X,

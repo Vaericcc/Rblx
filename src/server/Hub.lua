@@ -81,14 +81,15 @@ end
 ----------------------------------------------------------------------------
 
 local function buildLighting()
-	Lighting.ClockTime = 12.6
+	Lighting.ClockTime = 12
+	Lighting.GeographicLatitude = 0 -- sun straight overhead: the sunken plaza is lit evenly, no light shafts through the merlons
 	Lighting.Brightness = 2.6
 	Lighting.Ambient = Color3.fromRGB(128, 132, 142)
 	Lighting.OutdoorAmbient = Color3.fromRGB(150, 156, 168)
 	Lighting.EnvironmentDiffuseScale = 0.7
 	Lighting.EnvironmentSpecularScale = 0.5
 	Lighting.GlobalShadows = true
-	Lighting.ShadowSoftness = 0.25
+	Lighting.ShadowSoftness = 0.6
 	Lighting.FogEnd = 1400
 	for _, name in { "DubbleTakeSky", "DubbleTakeAtmosphere", "DubbleTakeBloom", "DubbleTakeColor", "DubbleTakeRays" } do
 		local old = Lighting:FindFirstChild(name)

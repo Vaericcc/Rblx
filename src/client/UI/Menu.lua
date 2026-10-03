@@ -37,7 +37,8 @@ export type Menu = typeof(setmetatable({} :: {
 	slash: Frame,
 	titleLabel: TextLabel,
 	itemsFrame: Frame,
-	paper: Frame,
+	paper: CanvasGroup,
+	paperPos: UDim2,
 	paperBody: ScrollingFrame,
 	items: { Item },
 	bars: { [string]: TextButton },
@@ -49,6 +50,7 @@ export type Menu = typeof(setmetatable({} :: {
 	stage: AvatarStage.AvatarStage?,
 	accent: Color3,
 	headerLabel: TextLabel?,
+	hideToken: number?,
 }, Menu))
 
 local SOUND_OPEN = "open"
@@ -225,7 +227,7 @@ function Menu.open(opts: Opts): Menu
 	end
 
 	-- Paper content panel
-	self.paper = Make("Frame", {
+	self.paper = Make("CanvasGroup", {
 		BackgroundColor3 = Theme.cream,
 		Position = if compact then UDim2.new(0, 12, 0, COMPACT_TOP) else UDim2.fromScale(0.58, 0.08),
 		Size = if compact then paperW else UDim2.new(0.39, 0, 0, 200),
@@ -237,6 +239,7 @@ function Menu.open(opts: Opts): Menu
 		Make.pad(if compact then 12 else 20),
 		Parent = self.root,
 	})
+	self.paperPos = self.paper.Position
 	self.paperBody = Make("ScrollingFrame", {
 		BackgroundTransparency = 1,
 		Size = UDim2.fromScale(1, 1),
@@ -371,13 +374,13 @@ function Menu.select(self: Menu, id: string?)
 end
 
 function Menu.content(self: Menu): ScrollingFrame
+	self.hideToken = (self.hideToken or 0) + 1
 	if not self.paper.Visible then
 		self.paper.Visible = true
 		if motion() then
-			local target = self.paper.Position
-			self.paper.Position = target + UDim2.fromOffset(0, 40)
-			self.paper.BackgroundTransparency = 1
-			tween(self.paper, 0.35, { Position = target, BackgroundTransparency = 0 }, Enum.EasingStyle.Back)
+			self.paper.Position = self.paperPos + UDim2.fromOffset(0, 40)
+			self.paper.GroupTransparency = 1
+			tween(self.paper, 0.35, { Position = self.paperPos, GroupTransparency = 0 }, Enum.EasingStyle.Back)
 		end
 	end
 	return self.paperBody
@@ -387,26 +390,78 @@ function Menu.clearContent(self: Menu)
 	for _, c in self.paperBody:GetChildren() do
 		if c:IsA("GuiObject") then c:Destroy() end
 	end
+	self.paperBody.CanvasPosition = Vector2.zero
+	-- Page swap: the paper dips and dims, then springs back with the new page.
+	if self.paper.Visible and motion() then
+		self.paper.Position = self.paperPos + UDim2.fromOffset(0, 14)
+		self.paper.GroupTransparency = 0.5
+		tween(self.paper, 0.3, { Position = self.paperPos, GroupTransparency = 0 }, Enum.EasingStyle.Back)
+	end
 end
 
 function Menu.hideContent(self: Menu)
-	self:clearContent()
-	self.paper.Visible = false
+	if not self.paper.Visible then self:clearContent() return end
+	self.hideToken = (self.hideToken or 0) + 1
+	local token = self.hideToken
+	if not motion() then self:clearContent() self.paper.Visible = false return end
+	tween(self.paper, 0.22, { Position = self.paperPos + UDim2.fromOffset(0, 40), GroupTransparency = 1 }, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
+	task.delay(0.22, function()
+		if self.hideToken == token and not self.closed then
+			self:clearContent()
+			self.paper.Visible = false
+			self.paper.Position = self.paperPos
+			self.paper.GroupTransparency = 0
+		end
+	end)
 end
 
 function Menu.close(self: Menu)
 	if self.closed then return end
 	self.closed = true
-	if self.blur then tween(self.blur, 0.25, { Size = 0 }) end
-	if self.color then tween(self.color, 0.25, { Saturation = 0, Contrast = 0, Brightness = 0 }) end
-	tween(self.root, 0.22, { BackgroundTransparency = 1 })
-	tween(self.slash, 0.25, { Position = UDim2.fromScale(1.6, 0.5) }, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
-	for _, bar in self.bars do
-		tween(bar, 0.2, { Position = UDim2.fromOffset(600, 0) }, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
+	play(SOUND_SELECT, 0.35)
+	local compact = Responsive.isCompact()
+	local IN = Enum.EasingDirection.In
+	-- 1. bars peel off one after another, the way they came in
+	local i = 0
+	for _, item in self.items do
+		local bar = self.bars[item.id]
+		if bar then
+			i += 1
+			local delay = 0.03 * (i - 1)
+			task.delay(delay, function()
+				if not bar.Parent then return end
+				tween(bar, 0.26, {
+					Position = if compact then bar.Position + UDim2.fromOffset(0, -60) else UDim2.fromOffset(-700, 0),
+					TextTransparency = 1, BackgroundTransparency = 1,
+				}, Enum.EasingStyle.Quint, IN)
+				local stroke = bar:FindFirstChildOfClass("UIStroke")
+				if stroke then tween(stroke, 0.2, { Transparency = 1 }) end
+			end)
+		end
 	end
-	tween(self.titleLabel, 0.2, { TextTransparency = 1 })
-	tween(self.paper, 0.2, { BackgroundTransparency = 1 })
-	task.delay(if motion() then 0.3 else 0, function()
+	-- 2. title slides off along its own axis and fades
+	tween(self.titleLabel, 0.3, {
+		TextTransparency = 1,
+		Position = if compact then self.titleLabel.Position - UDim2.fromOffset(60, 0) else self.titleLabel.Position - UDim2.fromScale(0, 0.12),
+	}, Enum.EasingStyle.Quint, IN)
+	if self.headerLabel then
+		tween(self.headerLabel, 0.22, { TextTransparency = 1, BackgroundTransparency = 1 }, Enum.EasingStyle.Quint, IN)
+		local hs = self.headerLabel:FindFirstChildOfClass("UIStroke")
+		if hs then tween(hs, 0.2, { Transparency = 1 }) end
+	end
+	-- 3. paper drops and fades as one sheet
+	if self.paper.Visible then
+		tween(self.paper, 0.3, { Position = self.paperPos + UDim2.fromOffset(0, 70), GroupTransparency = 1, Rotation = self.paper.Rotation + 2 }, Enum.EasingStyle.Quint, IN)
+	end
+	-- 4. avatar fades, slash sweeps out the far side, world comes back into focus
+	if self.stage then self.stage:fadeOut(0.3) end
+	task.delay(0.08, function()
+		tween(self.slash, 0.32, { Position = UDim2.fromScale(if compact then 0.5 else 1.7, if compact then 1.8 else 0.5) }, Enum.EasingStyle.Quint, IN)
+	end)
+	if self.blur then tween(self.blur, 0.4, { Size = 0 }) end
+	if self.color then tween(self.color, 0.4, { Saturation = 0, Contrast = 0, Brightness = 0 }) end
+	tween(self.root, 0.4, { BackgroundTransparency = 1 })
+	task.delay(if motion() then 0.45 else 0, function()
 		if self.blur then self.blur:Destroy() end
 		if self.color then self.color:Destroy() end
 		if self.stage then self.stage:destroy() end

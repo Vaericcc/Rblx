@@ -75,19 +75,23 @@ local function poseLean(model: Model): { { joint: Motor6D, c0: CFrame } }
 		end
 	end
 	local d = math.rad
-	-- torso: shoulders back into the wall, hips pushed slightly forward
-	bend("LowerTorso", "Root", CFrame.Angles(d(-6), 0, d(8)))
-	bend("UpperTorso", "Waist", CFrame.Angles(d(-4), d(-10), d(4)))
-	bend("Head", "Neck", CFrame.Angles(d(6), d(24), d(-6)))
-	-- arms folded across the chest
-	bend("LeftUpperArm", "LeftShoulder", CFrame.Angles(d(50), d(-25), d(-70)))
-	bend("LeftLowerArm", "LeftElbow", CFrame.Angles(d(95), 0, 0))
-	bend("RightUpperArm", "RightShoulder", CFrame.Angles(d(40), d(30), d(75)))
-	bend("RightLowerArm", "RightElbow", CFrame.Angles(d(105), 0, 0))
-	-- back leg straight and planted, front leg crossed over at the ankle
-	bend("LeftUpperLeg", "LeftHip", CFrame.Angles(d(4), 0, d(-10)))
-	bend("RightUpperLeg", "RightHip", CFrame.Angles(d(-6), d(10), d(22)))
-	bend("RightLowerLeg", "RightKnee", CFrame.Angles(d(-12), 0, 0))
+	-- Torso: hips pushed out from the wall, shoulders back onto it, so the body
+	-- makes a clear diagonal rather than standing straight.
+	bend("LowerTorso", "Root", CFrame.Angles(d(-10), 0, d(14)))
+	bend("UpperTorso", "Waist", CFrame.Angles(d(-6), d(-12), d(-4)))
+	bend("Head", "Neck", CFrame.Angles(d(4), d(26), d(-10)))
+	-- Arms folded: upper arms swing forward and in, elbows bend hard so the
+	-- forearms cross the chest.
+	bend("LeftUpperArm", "LeftShoulder", CFrame.Angles(d(72), d(38), d(-18)))
+	bend("LeftLowerArm", "LeftElbow", CFrame.Angles(d(108), d(-12), 0))
+	bend("RightUpperArm", "RightShoulder", CFrame.Angles(d(66), d(-38), d(18)))
+	bend("RightLowerArm", "RightElbow", CFrame.Angles(d(112), d(12), 0))
+	-- Legs: the wall-side leg takes the weight; the other crosses in front and
+	-- rests on its toe.
+	bend("LeftUpperLeg", "LeftHip", CFrame.Angles(d(6), 0, d(-14)))
+	bend("RightUpperLeg", "RightHip", CFrame.Angles(d(-10), d(16), d(30)))
+	bend("RightLowerLeg", "RightKnee", CFrame.Angles(d(-18), 0, 0))
+	bend("RightFoot", "RightAnkle", CFrame.Angles(d(26), 0, 0))
 	return touched
 end
 
@@ -168,7 +172,7 @@ function AvatarStage.slotCFrame(self: AvatarStage, index: number, total: number)
 	if self.mode == "lean" then
 		-- facing the camera (+z), turned so the left shoulder rests on the wall
 		-- behind, upper body tilted back into it, feet a little forward
-		return CFrame.new(0, 2.85, 0.4) * CFrame.Angles(0, math.pi - math.rad(20), 0) * CFrame.Angles(math.rad(8), 0, math.rad(7))
+		return CFrame.new(0.2, 2.8, 0.6) * CFrame.Angles(0, math.pi + math.rad(16), 0) * CFrame.Angles(math.rad(6), 0, math.rad(12))
 	end
 	local spacing = 4.5
 	local x = (index - (total + 1) / 2) * spacing
@@ -242,7 +246,12 @@ function AvatarStage.update(self: AvatarStage, dt: number)
 		local sway = math.sin(self.angle) * 0.25
 		local eye = Vector3.new(5.5 + sway, 3.6, 10.5)
 		self.camera.CFrame = CFrame.lookAt(eye, Vector3.new(-0.3, 2.9, 0))
-		self.camera.FieldOfView = 38
+		-- Roblox FOV is vertical: keep the HORIZONTAL view constant (about 44°)
+		-- so a wide, short frame on a phone shows the same slice of wall.
+		local size = self.frame.AbsoluteSize
+		local aspect = if size.Y > 0 then size.X / size.Y else 1
+		local hFov = math.rad(44)
+		self.camera.FieldOfView = math.clamp(math.deg(2 * math.atan(math.tan(hFov / 2) / math.max(aspect, 0.3))), 12, 70)
 		-- breathing: chest rises, head nods a touch
 		local model = self.clones[Players.LocalPlayer.UserId]
 		if model and self.leanRoot and self.leanJoints then
@@ -276,6 +285,11 @@ function AvatarStage.update(self: AvatarStage, dt: number)
 		self.camera.CFrame = CFrame.lookAt(eye, Vector3.new(0, 2.6, 0))
 		self.camera.FieldOfView = math.clamp(34 + total * 1.5, 34, 50)
 	end
+end
+
+-- Fade the whole stage out (for menu / overlay close animations).
+function AvatarStage.fadeOut(self: AvatarStage, seconds: number)
+	TweenService:Create(self.frame, TweenInfo.new(seconds, Enum.EasingStyle.Quint, Enum.EasingDirection.In), { ImageTransparency = 1 }):Play()
 end
 
 function AvatarStage.destroy(self: AvatarStage)
