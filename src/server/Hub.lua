@@ -130,7 +130,7 @@ end
 -- Grass hill: concentric square rings that step DOWN away from the walls,
 -- so the courtyard reads as cut into a mound.
 local function buildHill()
-	local inner = COURT / 2 + WALL_T + 2
+	local inner = COURT / 2 + WALL_T + 12 -- leave room for the gate passages behind each wall
 	local ringW = 16
 	for t = 1, TERRACES do
 		local lo = inner + (t - 1) * ringW
@@ -148,10 +148,31 @@ local function buildHill()
 			block(Vector3.new(def[1].X, 1.2, def[1].Z), CFrame.new(def[2] + Vector3.new(0, top - thick - 0.6, 0)), SOIL, Enum.Material.Ground, "Soil")
 		end
 	end
-	-- Flat meadow beyond the mound, and a deep base so nothing floats
+	-- Flat meadow beyond the mound, built as four slabs so it never covers the
+	-- courtyard floor, and a deep base so nothing floats
 	local meadowTop = FLOOR_Y + WALL_H - 2 - TERRACES * 6
-	block(Vector3.new(HILL_SIZE + 200, 4, HILL_SIZE + 200), CFrame.new(0, meadowTop - 2, 0), GRASS, Enum.Material.Grass, "Meadow")
-	block(Vector3.new(HILL_SIZE + 200, 30, HILL_SIZE + 200), CFrame.new(0, meadowTop - 19, 0), SOIL, Enum.Material.Ground, "Base")
+	local hole = inner + TERRACES * ringW
+	local half = (HILL_SIZE + 200) / 2
+	for _, def in {
+		{ Vector3.new(half * 2, 4, half - hole), Vector3.new(0, 0, -(hole + (half - hole) / 2)) },
+		{ Vector3.new(half * 2, 4, half - hole), Vector3.new(0, 0, hole + (half - hole) / 2) },
+		{ Vector3.new(half - hole, 4, hole * 2), Vector3.new(-(hole + (half - hole) / 2), 0, 0) },
+		{ Vector3.new(half - hole, 4, hole * 2), Vector3.new(hole + (half - hole) / 2, 0, 0) },
+	} do
+		block(def[1], CFrame.new(def[2] + Vector3.new(0, meadowTop - 2, 0)), GRASS, Enum.Material.Grass, "Meadow")
+	end
+	block(Vector3.new(half * 2, 30, half * 2), CFrame.new(0, FLOOR_Y - 17, 0), SOIL, Enum.Material.Ground, "Base")
+	-- Flat grass shelf directly behind the walls, under the gate passages, at wall-top height
+	local shelfTop = FLOOR_Y + WALL_H - 2
+	local shelfIn = COURT / 2 + WALL_T
+	for _, def in {
+		{ Vector3.new(inner * 2, 6, inner - shelfIn), Vector3.new(0, 0, -(shelfIn + (inner - shelfIn) / 2)) },
+		{ Vector3.new(inner * 2, 6, inner - shelfIn), Vector3.new(0, 0, shelfIn + (inner - shelfIn) / 2) },
+		{ Vector3.new(inner - shelfIn, 6, shelfIn * 2), Vector3.new(-(shelfIn + (inner - shelfIn) / 2), 0, 0) },
+		{ Vector3.new(inner - shelfIn, 6, shelfIn * 2), Vector3.new(shelfIn + (inner - shelfIn) / 2, 0, 0) },
+	} do
+		block(def[1], CFrame.new(def[2] + Vector3.new(0, shelfTop - 3, 0)), GRASS_DARK, Enum.Material.Grass, "Shelf")
+	end
 end
 
 -- Flagstone floor: alternating pale/grey tiles with a darker border and a dais.
@@ -276,6 +297,12 @@ local function buildGateway(cf: CFrame)
 	tl.Range = 16
 	tl.Brightness = 1
 	tl.Parent = lamp
+	-- Stone gatehouse around the passage outside the wall (roof and flanks), so no earth shows inside
+	local outZ = -(WALL_T / 2 + (depth - WALL_T) / 2)
+	block(Vector3.new(gapW + 2.4 + 6, 3, depth - WALL_T + 1), cf * CFrame.new(0, peak + 2.7, outZ), STONE_DARK, Enum.Material.Slate, "GateRoof")
+	for side = -1, 1, 2 do
+		block(Vector3.new(3, peak + 4, depth - WALL_T + 1), cf * CFrame.new(side * (gapW / 2 + 2.7), (peak + 4) / 2, outZ), STONE_DARK, Enum.Material.Slate, "GateFlank")
+	end
 	-- Iron portcullis bars so the void reads as a gate
 	for i = -3, 3 do
 		block(Vector3.new(0.3, peak - 1, 0.3), cf * CFrame.new(i * (gapW / 7), (peak - 1) / 2, -(depth - WALL_T / 2) + 2.5), Color3.fromRGB(40, 36, 34), Enum.Material.Metal, "Bar")

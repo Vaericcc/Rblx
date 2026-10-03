@@ -116,9 +116,9 @@ function Menu.open(opts: Opts): Menu
 	if opts.stage == "solo" then
 		local holder = Make("Frame", {
 			BackgroundTransparency = 1,
-			Position = if compact then UDim2.fromScale(0.5, 0.45) else UDim2.fromScale(0.36, 0.72),
+			Position = if compact then UDim2.fromScale(0.5, 0.45) else UDim2.fromScale(0.3, 0.86),
 			AnchorPoint = Vector2.new(0.5, 0.5),
-			Size = if compact then UDim2.fromScale(1, 0.6) else UDim2.fromScale(0.5, 0.95),
+			Size = if compact then UDim2.fromScale(1, 0.6) else UDim2.fromScale(0.42, 0.8),
 			ZIndex = 300,
 			Parent = self.root,
 		})
