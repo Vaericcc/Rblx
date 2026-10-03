@@ -36,12 +36,14 @@ function Vote.show(container: Frame, data: any, ctx: any)
 	lattice(root)
 
 	-- Big slanted title
-	Make.label("WHADDYA\nPICK?", if compact then 34 else 56, {
+	local headerH = if compact then 48 else 150
+	Make.label(if compact then "WHADDYA PICK?" else "WHADDYA\nPICK?", if compact then 28 else 56, {
 		Font = Theme.fontDisplay, TextColor3 = Theme.cream, TextXAlignment = Enum.TextXAlignment.Left,
-		Position = UDim2.fromOffset(24, 12), Size = UDim2.new(0, 320, 0, 130), Rotation = -6, ZIndex = 3, Parent = root,
+		Position = UDim2.fromOffset(24, if compact then 6 else 12), Size = UDim2.new(0, 320, 0, if compact then 36 else 130), Rotation = if compact then -2 else -6, ZIndex = 3, Parent = root,
 	})
 	Make.label("one stamp per award", 14, {
-		Font = Theme.fontBody, TextColor3 = Theme.pop, Position = UDim2.fromOffset(28, 140), Size = UDim2.new(0, 300, 0, 20), Rotation = -6, ZIndex = 3, Parent = root,
+		Font = Theme.fontBody, TextColor3 = Theme.pop, TextXAlignment = if compact then Enum.TextXAlignment.Right else Enum.TextXAlignment.Left,
+		Position = if compact then UDim2.new(1, -324, 0, 14) else UDim2.fromOffset(28, 140), Size = UDim2.new(0, 300, 0, 20), Rotation = if compact then 0 else -6, ZIndex = 3, Parent = root,
 	})
 
 	local me = Players.LocalPlayer.DisplayName
@@ -50,14 +52,31 @@ function Vote.show(container: Frame, data: any, ctx: any)
 
 	-- Award columns: each is a tilted stack; tap arrows to flip through, STAMP to pick
 	local area = Make("ScrollingFrame", {
-		BackgroundTransparency = 1, Position = UDim2.new(0, 0, 0, if compact then 170 else 150), Size = UDim2.new(1, 0, 1, if compact then -170 else -150),
+		BackgroundTransparency = 1, Position = UDim2.new(0, 0, 0, headerH), Size = UDim2.new(1, 0, 1, -headerH),
 		AutomaticCanvasSize = Enum.AutomaticSize.X, CanvasSize = UDim2.new(), ScrollBarThickness = 6, ScrollBarImageColor3 = Theme.cream,
 		ScrollingDirection = Enum.ScrollingDirection.X, ZIndex = 2,
 		Make.list(Enum.FillDirection.Horizontal, 18), Make("UIPadding", { PaddingLeft = UDim.new(0, 24), PaddingRight = UDim.new(0, 24), PaddingTop = UDim.new(0, 10) }),
 		Parent = root,
 	})
-	local cardW = if compact then 230 else 260
-	local cardH = if compact then 330 else 380
+	local cardW = 260
+	local cardH = 380
+	-- Cards are designed at one size; the whole area scales down to fit short
+	-- screens (phones held sideways) instead of overflowing.
+	local areaScale = Make("UIScale", { Scale = 1, Parent = area })
+	local function fit()
+		local avail = root.AbsoluteSize.Y - headerH
+		if avail <= 0 then return end
+		local uiScale = 1
+		local gui = root:FindFirstAncestorOfClass("ScreenGui")
+		local sc = gui and gui:FindFirstChildOfClass("UIScale")
+		if sc then uiScale = sc.Scale end
+		local need = (cardH + 110) * uiScale
+		local s = math.clamp(avail / need, 0.35, 1)
+		areaScale.Scale = s
+		area.Size = UDim2.new(1 / s, 0, 1 / s, -headerH / s)
+	end
+	root:GetPropertyChangedSignal("AbsoluteSize"):Connect(fit)
+	task.defer(fit)
 
 	for ai, award in data.awards do
 		local col = Make("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(cardW + 30, cardH + 90), LayoutOrder = ai, ZIndex = 2, Parent = area })

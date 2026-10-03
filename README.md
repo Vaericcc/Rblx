@@ -44,7 +44,8 @@ proximity voice chat only carries their own group. They return to the hub when i
 
 ## Cross-platform
 
-Phone, tablet and PC share one UI. Screens narrower than about 820px switch to a stacked layout
+Phone, tablet and PC share one UI. A phone held sideways keeps side-by-side panels at small
+sizes; held upright (or anything under about 820px wide and tall enough) it switches to a stacked layout
 with the drawing canvas on top and everything else scrolling below. Touch drawing is supported,
 tap targets grow on touch devices, and during a match the thumbstick, jump button and character
 movement are disabled so nothing gets in the way. See `docs/DESIGN.md` for the full rules.

@@ -8,6 +8,7 @@
 	character spawns, and a stale reference reports a tiny viewport.
 ]]
 local UserInputService = game:GetService("UserInputService")
+local GuiService = game:GetService("GuiService")
 
 local Responsive = {}
 
@@ -31,6 +32,20 @@ end
 function Responsive.isCompact(): boolean
 	local v = Responsive.viewport()
 	return v.X < 820 or v.Y < 480
+end
+
+-- Stacked = compact AND roughly portrait: panels go top-to-bottom. A phone held
+-- sideways is compact but wide, so it keeps side-by-side panels at small sizes.
+function Responsive.isStacked(): boolean
+	if not Responsive.isCompact() then return false end
+	local v = Responsive.viewport()
+	return v.X < v.Y * 1.35
+end
+
+-- Height of the Roblox top bar the ScreenGui is inset by.
+function Responsive.inset(): number
+	local ok, top = pcall(function() return (GuiService:GetGuiInset()).Y end)
+	return if ok then top else 36
 end
 
 function Responsive.isTouch(): boolean

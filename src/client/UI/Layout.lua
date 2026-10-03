@@ -2,7 +2,8 @@
 --[[
 	Layout.split(container, opts) -> main, side
 	Regular screens: main and side sit side by side (main gets `mainFraction`).
-	Compact screens: main sits on top at `compactMainHeight` px, side scrolls below.
+	Stacked screens (portrait phone): main sits on top at `compactMainHeight` px,
+	side scrolls below. A landscape phone keeps side-by-side.
 	Both frames always exist so screens never branch on screen size themselves.
 ]]
 local Make = require(script.Parent.Make)
@@ -36,7 +37,7 @@ function Layout.split(container: Instance, opts: SplitOpts?): (Frame, GuiObject)
 	local o = opts or {}
 	local gap = o.gap or 12
 	local mainFraction = o.mainFraction or 0.6
-	if Responsive.isCompact() then
+	if Responsive.isStacked() then
 		local wrapper = scroller(container, UDim2.fromScale(1, 1))
 		local v = Responsive.viewport()
 		local mainH = o.compactMainHeight or math.min(v.X - 32, math.floor(v.Y * 0.5))

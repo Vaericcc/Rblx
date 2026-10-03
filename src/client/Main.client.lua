@@ -70,6 +70,7 @@ local matchRoot = Make("Frame", {
 	Active = true,
 	Parent = gui,
 })
+Make.coverInset(matchRoot, Responsive.inset())
 
 -- Centered column that caps content width on wide screens.
 local column = Make("Frame", {
@@ -347,6 +348,7 @@ function setOverlay(message: string?, style: string?)
 	local join = style == "join"
 	local compact = Responsive.isCompact()
 	overlay = Make("Frame", { BackgroundColor3 = Theme.ink, Size = UDim2.fromScale(1, 1), ZIndex = 200, Active = true, Parent = gui })
+	Make.coverInset(overlay, Responsive.inset())
 	-- the slash, as in every menu
 	Make("Frame", {
 		BackgroundColor3 = Theme.inkSoft, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.22, 0.5),

@@ -69,6 +69,7 @@ end
 
 function Draw.show(container: Frame, data: any, ctx: any)
 	local compact = Responsive.isCompact()
+	local stacked = Responsive.isStacked()
 	local v = Responsive.viewport()
 	local size = if compact then 40 else 44
 	local railThick = size + 14
@@ -88,22 +89,22 @@ function Draw.show(container: Frame, data: any, ctx: any)
 	-- Tool rail + canvas
 	local toolHolder = Make("Frame", {
 		BackgroundColor3 = Theme.panel, Make.corner(), Make.pad(6),
-		Size = if compact then UDim2.new(1, 0, 0, railThick) else UDim2.new(0, railThick, 1, -44),
-		Position = UDim2.fromOffset(0, if compact then 42 else 44),
+		Size = if stacked then UDim2.new(1, 0, 0, railThick) else UDim2.new(0, railThick, 1, -44),
+		Position = UDim2.fromOffset(0, if stacked then 42 else 44),
 		Parent = main,
 	})
 	local toolRail = Make("ScrollingFrame", {
 		BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1),
-		AutomaticCanvasSize = if compact then Enum.AutomaticSize.X else Enum.AutomaticSize.Y,
+		AutomaticCanvasSize = if stacked then Enum.AutomaticSize.X else Enum.AutomaticSize.Y,
 		CanvasSize = UDim2.new(), ScrollBarThickness = 0,
-		ScrollingDirection = if compact then Enum.ScrollingDirection.X else Enum.ScrollingDirection.Y,
-		Make.list(if compact then Enum.FillDirection.Horizontal else Enum.FillDirection.Vertical, 6, Enum.HorizontalAlignment.Center),
+		ScrollingDirection = if stacked then Enum.ScrollingDirection.X else Enum.ScrollingDirection.Y,
+		Make.list(if stacked then Enum.FillDirection.Horizontal else Enum.FillDirection.Vertical, 6, Enum.HorizontalAlignment.Center),
 		Parent = toolHolder,
 	})
 	local canvasArea = Make("Frame", {
 		BackgroundTransparency = 1,
-		Size = if compact then UDim2.new(1, 0, 1, -(48 + railThick)) else UDim2.new(1, -(railThick + 10), 1, -44),
-		Position = if compact then UDim2.fromOffset(0, 48 + railThick) else UDim2.fromOffset(railThick + 10, 44),
+		Size = if stacked then UDim2.new(1, 0, 1, -(48 + railThick)) else UDim2.new(1, -(railThick + 10), 1, -44),
+		Position = if stacked then UDim2.fromOffset(0, 48 + railThick) else UDim2.fromOffset(railThick + 10, 44),
 		Parent = main,
 	})
 	local canvas = Canvas.new(canvasArea, true)
