@@ -532,6 +532,36 @@ local boot = playerGui:FindFirstChild("DubbleTakeBoot")
 if boot then task.delay(0.1, function() boot:Destroy() end) end
 Net.remote:FireServer(Net.C2S.Hello)
 
+-- On-screen keyboard: on phones it covers the lower half of the screen, so a
+-- focused text box near the bottom is hidden behind it. While a box is
+-- focused, every top-level layer slides up just enough to keep it visible.
+local function keyboardShift()
+	local box = UserInputService:GetFocusedTextBox()
+	local shift = 0
+	if box and UserInputService.OnScreenKeyboardVisible then
+		local kbTop = UserInputService.OnScreenKeyboardPosition.Y
+		local boxBottom = box.AbsolutePosition.Y + box.AbsoluteSize.Y + 24
+		if kbTop > 0 and boxBottom > kbTop then shift = boxBottom - kbTop end
+	end
+	local px = shift / math.max(scale.Scale, 0.1) -- offsets are in pre-scale pixels
+	for _, layer in gui:GetChildren() do
+		if layer:IsA("GuiObject") then
+			local baseY = layer:GetAttribute("BaseY")
+			if baseY == nil then baseY = layer.Position.Y.Offset layer:SetAttribute("BaseY", baseY) end
+			if layer:GetAttribute("KeyboardShift") ~= px then
+				layer:SetAttribute("KeyboardShift", px)
+				TweenService:Create(layer, TweenInfo.new(0.2, Enum.EasingStyle.Quint), {
+					Position = UDim2.new(layer.Position.X.Scale, layer.Position.X.Offset, layer.Position.Y.Scale, baseY - px),
+				}):Play()
+			end
+		end
+	end
+end
+UserInputService.TextBoxFocused:Connect(function() task.delay(0.15, keyboardShift) end)
+UserInputService.TextBoxFocusReleased:Connect(function() task.defer(keyboardShift) end)
+UserInputService:GetPropertyChangedSignal("OnScreenKeyboardVisible"):Connect(function() task.defer(keyboardShift) end)
+UserInputService:GetPropertyChangedSignal("OnScreenKeyboardPosition"):Connect(function() task.defer(keyboardShift) end)
+
 -- Resize / rotate: rescale, and rebuild the chrome if the layout class changed.
 -- Phase screens keep their layout until the next phase so nobody loses typed text.
 Responsive.onChanged(function()
