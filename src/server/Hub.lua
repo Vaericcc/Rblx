@@ -490,7 +490,7 @@ end
 local function clearTemplate()
 	for _, name in { "Baseplate", "SpawnLocation" } do
 		local inst = workspace:FindFirstChild(name)
-		if inst and not inst:IsDescendantOf(root) then inst:Destroy() end
+		if inst then inst:Destroy() end
 	end
 	-- anything else big and flat at floor level (a terrain-less template floor)
 	for _, inst in workspace:GetChildren() do

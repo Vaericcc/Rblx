@@ -92,6 +92,30 @@ local function poseLean(model: Model): { { joint: Motor6D, c0: CFrame } }
 	bend("RightUpperLeg", "RightHip", CFrame.Angles(d(-10), d(16), d(30)))
 	bend("RightLowerLeg", "RightKnee", CFrame.Angles(d(-18), 0, 0))
 	bend("RightFoot", "RightAnkle", CFrame.Angles(d(26), 0, 0))
+
+	-- R6: one part per limb, joints live in the Torso. Rotate in torso space
+	-- (X right, Y up, Z back) so the angles read like world directions.
+	local torso = model:FindFirstChild("Torso")
+	if torso and #touched == 0 then
+		local function spin(holder: Instance, jointName: string, rot: CFrame)
+			local joint = holder:FindFirstChild(jointName)
+			if joint and joint:IsA("Motor6D") then
+				table.insert(touched, { joint = joint, c0 = joint.C0 })
+				joint.C0 = CFrame.new(joint.C0.Position) * rot * joint.C0.Rotation
+			end
+		end
+		local hrp = model:FindFirstChild("HumanoidRootPart")
+		-- torso: lean back onto the wall and roll toward it
+		if hrp then spin(hrp, "RootJoint", CFrame.Angles(d(-10), 0, d(8))) end
+		-- arms: swing forward and up, then across the chest; right stacks on top
+		spin(torso, "Right Shoulder", CFrame.Angles(0, d(48), 0) * CFrame.Angles(d(82), 0, 0))
+		spin(torso, "Left Shoulder", CFrame.Angles(0, d(-48), 0) * CFrame.Angles(d(70), 0, 0))
+		-- legs: right crosses over in front, left takes the weight
+		spin(torso, "Right Hip", CFrame.Angles(d(14), 0, d(-26)))
+		spin(torso, "Left Hip", CFrame.Angles(d(-2), 0, d(6)))
+		-- head turned toward the camera, slight tilt
+		spin(torso, "Neck", CFrame.Angles(d(-4), d(24), d(-6)))
+	end
 	return touched
 end
 
@@ -260,9 +284,13 @@ function AvatarStage.update(self: AvatarStage, dt: number)
 			for _, j in self.leanJoints do
 				local name = j.joint.Name
 				if name == "Waist" then
-					j.joint.C0 = j.c0 * CFrame.Angles(math.rad(-4 + breath * 1.2), math.rad(-10), math.rad(4))
-				elseif name == "Neck" then
-					j.joint.C0 = j.c0 * CFrame.Angles(math.rad(6 + breath * 1.5), math.rad(24 + math.sin(self.angle * 0.7) * 4), math.rad(-6))
+					j.joint.C0 = j.c0 * CFrame.Angles(math.rad(-8 + breath * 1.2), math.rad(-8), math.rad(-2))
+				elseif name == "Neck" and j.joint.Parent and j.joint.Parent.Name == "Head" then
+					j.joint.C0 = j.c0 * CFrame.Angles(math.rad(2 + breath * 1.5), math.rad(22 + math.sin(self.angle * 0.7) * 4), math.rad(-8))
+				elseif name == "Neck" then -- R6
+					j.joint.C0 = CFrame.new(j.c0.Position) * CFrame.Angles(math.rad(-4 + breath), math.rad(24 + math.sin(self.angle * 0.7) * 4), math.rad(-6)) * j.c0.Rotation
+				elseif name == "RootJoint" then
+					j.joint.C0 = CFrame.new(j.c0.Position) * CFrame.Angles(math.rad(-10 + breath * 0.8), 0, math.rad(8)) * j.c0.Rotation
 				end
 			end
 		end
