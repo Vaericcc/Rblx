@@ -12,7 +12,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Hub = {}
 
 -- Geometry --------------------------------------------------------------------
-local COURT = 96 -- inner courtyard width (studs)
+local COURT = 108 -- inner courtyard width (studs)
 local WALL_H = 30
 local WALL_T = 6
 local FLOOR_Y = 0 -- top of the flagstones
@@ -235,8 +235,8 @@ local function buildFloor()
 	signAnchor.Transparency = 1
 	signAnchor.CanCollide = false
 	local sign = Instance.new("BillboardGui")
-	sign.Size = UDim2.fromOffset(420, 110)
-	sign.MaxDistance = 260
+	sign.Size = UDim2.new(24, 0, 6.5, 0) -- studs, so it keeps its world size on every screen
+	sign.MaxDistance = 300
 	sign.Parent = signAnchor
 	local label = Instance.new("TextLabel")
 	label.Size = UDim2.fromScale(1, 1)
@@ -366,7 +366,7 @@ local function buildPlanters()
 	local spots = {}
 	local d = COURT / 2 - 10
 	for _, p in { Vector3.new(d, 0, d), Vector3.new(-d, 0, d), Vector3.new(d, 0, -d), Vector3.new(-d, 0, -d) } do table.insert(spots, p) end
-	for _, p in { Vector3.new(0, 0, 24), Vector3.new(0, 0, -24), Vector3.new(24, 0, 0), Vector3.new(-24, 0, 0) } do table.insert(spots, p) end
+	for _, p in { Vector3.new(20, 0, 20), Vector3.new(-20, 0, 20), Vector3.new(20, 0, -20), Vector3.new(-20, 0, -20) } do table.insert(spots, p) end
 	for _, pos in spots do
 		-- corner planters sit on the raised walkway
 		local lift = if math.abs(pos.X) > COURT / 2 - 14 or math.abs(pos.Z) > COURT / 2 - 14 then 1.5 else 0
@@ -379,6 +379,27 @@ local function buildPlanters()
 				Position = pos + Vector3.new(rng:NextNumber(-1.4, 1.4), FLOOR_Y + 3.2 + rng:NextNumber(0, 0.6), rng:NextNumber(-1.4, 1.4)),
 				Color = LEAF[rng:NextInteger(1, #LEAF)], Material = Enum.Material.Grass })
 		end
+	end
+end
+
+-- Four spawn points, one per courtyard corner on the plaza floor, clear of the
+-- platforms, planters and dais. Invisible: the flagstones are the floor.
+local function buildSpawns()
+	-- the old single spawn in front of the dais may still exist in a synced place
+	local old = workspace:FindFirstChild("SpawnLocation")
+	if old then old:Destroy() end
+	local d = COURT / 2 - 18
+	for _, c in { Vector2.new(1, 1), Vector2.new(-1, 1), Vector2.new(1, -1), Vector2.new(-1, -1) } do
+		local spawn = Instance.new("SpawnLocation")
+		spawn.Name = "Spawn"
+		spawn.Anchored = true
+		spawn.Size = Vector3.new(8, 1, 8)
+		spawn.CFrame = CFrame.new(c.X * d, FLOOR_Y + 0.5, c.Y * d)
+		spawn.Transparency = 1
+		spawn.CanCollide = false
+		spawn.Neutral = true
+		spawn.Duration = 0
+		spawn.Parent = root
 	end
 end
 
@@ -473,6 +494,7 @@ function Hub.build()
 	buildFloor()
 	buildWalls()
 	buildPlanters()
+	buildSpawns()
 	buildTrees()
 	-- Hall of Fame against the wall between the first gateway and a corner
 	require(script.Parent.Leaderboard).init(CFrame.new(-28, FLOOR_Y + 1.5 + 6.5, -(COURT / 2 - 3)) * CFrame.Angles(0, 0, 0))

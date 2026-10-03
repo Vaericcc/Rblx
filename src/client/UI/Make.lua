@@ -30,17 +30,7 @@ local function Make(className: string, props: { [any]: any }): any
 end
 
 local M = {}
-setmetatable(M, { __call = function(_, ...) -- A full-screen frame normally starts below the Roblox top bar, leaving a strip
--- of world visible above it. This stretches it up under the bar and pads the
--- content back down, so backdrops cover everything and content stays clear.
-function Make.coverInset(frame: GuiObject, inset: number)
-	frame.Position = UDim2.new(0, 0, 0, -inset)
-	frame.Size = UDim2.new(1, 0, 1, inset)
-	local pad = frame:FindFirstChildOfClass("UIPadding") or Instance.new("UIPadding", frame)
-	pad.PaddingTop = UDim.new(0, inset)
-end
-
-return Make(...) end })
+setmetatable(M, { __call = function(_, ...) return Make(...) end })
 
 -- Merge caller props into defaults. Numeric keys are children: append, don't overwrite.
 local function merge(defaults: { [any]: any }, props: { [any]: any }?): { [any]: any }
@@ -57,31 +47,11 @@ local function merge(defaults: { [any]: any }, props: { [any]: any }?): { [any]:
 end
 
 function M.corner(radius: UDim?)
-	-- A full-screen frame normally starts below the Roblox top bar, leaving a strip
--- of world visible above it. This stretches it up under the bar and pads the
--- content back down, so backdrops cover everything and content stays clear.
-function Make.coverInset(frame: GuiObject, inset: number)
-	frame.Position = UDim2.new(0, 0, 0, -inset)
-	frame.Size = UDim2.new(1, 0, 1, inset)
-	local pad = frame:FindFirstChildOfClass("UIPadding") or Instance.new("UIPadding", frame)
-	pad.PaddingTop = UDim.new(0, inset)
-end
-
-return Make("UICorner", { CornerRadius = radius or Theme.radius })
+	return Make("UICorner", { CornerRadius = radius or Theme.radius })
 end
 
 function M.pad(all: number)
-	-- A full-screen frame normally starts below the Roblox top bar, leaving a strip
--- of world visible above it. This stretches it up under the bar and pads the
--- content back down, so backdrops cover everything and content stays clear.
-function Make.coverInset(frame: GuiObject, inset: number)
-	frame.Position = UDim2.new(0, 0, 0, -inset)
-	frame.Size = UDim2.new(1, 0, 1, inset)
-	local pad = frame:FindFirstChildOfClass("UIPadding") or Instance.new("UIPadding", frame)
-	pad.PaddingTop = UDim.new(0, inset)
-end
-
-return Make("UIPadding", {
+	return Make("UIPadding", {
 		PaddingTop = UDim.new(0, all),
 		PaddingBottom = UDim.new(0, all),
 		PaddingLeft = UDim.new(0, all),
@@ -90,17 +60,7 @@ return Make("UIPadding", {
 end
 
 function M.list(direction: Enum.FillDirection?, padding: number?, align: Enum.HorizontalAlignment?)
-	-- A full-screen frame normally starts below the Roblox top bar, leaving a strip
--- of world visible above it. This stretches it up under the bar and pads the
--- content back down, so backdrops cover everything and content stays clear.
-function Make.coverInset(frame: GuiObject, inset: number)
-	frame.Position = UDim2.new(0, 0, 0, -inset)
-	frame.Size = UDim2.new(1, 0, 1, inset)
-	local pad = frame:FindFirstChildOfClass("UIPadding") or Instance.new("UIPadding", frame)
-	pad.PaddingTop = UDim.new(0, inset)
-end
-
-return Make("UIListLayout", {
+	return Make("UIListLayout", {
 		FillDirection = direction or Enum.FillDirection.Vertical,
 		Padding = UDim.new(0, padding or 8),
 		SortOrder = Enum.SortOrder.LayoutOrder,
@@ -120,17 +80,7 @@ function M.label(text: string, size: number, props: { [any]: any }?)
 		Size = UDim2.new(1, 0, 0, size + 6),
 	}
 	merge(p, props)
-	-- A full-screen frame normally starts below the Roblox top bar, leaving a strip
--- of world visible above it. This stretches it up under the bar and pads the
--- content back down, so backdrops cover everything and content stays clear.
-function Make.coverInset(frame: GuiObject, inset: number)
-	frame.Position = UDim2.new(0, 0, 0, -inset)
-	frame.Size = UDim2.new(1, 0, 1, inset)
-	local pad = frame:FindFirstChildOfClass("UIPadding") or Instance.new("UIPadding", frame)
-	pad.PaddingTop = UDim.new(0, inset)
-end
-
-return Make("TextLabel", p)
+	return Make("TextLabel", p)
 end
 
 function M.heading(text: string, size: number, props: { [any]: any }?)
@@ -190,31 +140,11 @@ function M.card(props: { [any]: any }?)
 		M.pad(14),
 	}
 	merge(p, props)
-	-- A full-screen frame normally starts below the Roblox top bar, leaving a strip
--- of world visible above it. This stretches it up under the bar and pads the
--- content back down, so backdrops cover everything and content stays clear.
-function Make.coverInset(frame: GuiObject, inset: number)
-	frame.Position = UDim2.new(0, 0, 0, -inset)
-	frame.Size = UDim2.new(1, 0, 1, inset)
-	local pad = frame:FindFirstChildOfClass("UIPadding") or Instance.new("UIPadding", frame)
-	pad.PaddingTop = UDim.new(0, inset)
-end
-
-return Make("Frame", p)
+	return Make("Frame", p)
 end
 
 function M.spacer(height: number, order: number?)
-	-- A full-screen frame normally starts below the Roblox top bar, leaving a strip
--- of world visible above it. This stretches it up under the bar and pads the
--- content back down, so backdrops cover everything and content stays clear.
-function Make.coverInset(frame: GuiObject, inset: number)
-	frame.Position = UDim2.new(0, 0, 0, -inset)
-	frame.Size = UDim2.new(1, 0, 1, inset)
-	local pad = frame:FindFirstChildOfClass("UIPadding") or Instance.new("UIPadding", frame)
-	pad.PaddingTop = UDim.new(0, inset)
-end
-
-return Make("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, height), LayoutOrder = order or 0 })
+	return Make("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, height), LayoutOrder = order or 0 })
 end
 
 -- Horizontal row that lays children out left to right.
@@ -225,17 +155,7 @@ function M.row(height: number, padding: number?, props: { [any]: any }?)
 		M.list(Enum.FillDirection.Horizontal, padding or 8),
 	}
 	merge(p, props)
-	-- A full-screen frame normally starts below the Roblox top bar, leaving a strip
--- of world visible above it. This stretches it up under the bar and pads the
--- content back down, so backdrops cover everything and content stays clear.
-function Make.coverInset(frame: GuiObject, inset: number)
-	frame.Position = UDim2.new(0, 0, 0, -inset)
-	frame.Size = UDim2.new(1, 0, 1, inset)
-	local pad = frame:FindFirstChildOfClass("UIPadding") or Instance.new("UIPadding", frame)
-	pad.PaddingTop = UDim.new(0, inset)
-end
-
-return Make("Frame", p)
+	return Make("Frame", p)
 end
 
 -- Square icon button: image when the icon has an asset, short text otherwise.
@@ -275,6 +195,16 @@ function M.pill(text: string, selected: boolean, onClick: () -> (), props: { [an
 	}
 	merge(p, props)
 	return M.button(text, p.BackgroundColor3, onClick, p)
+end
+
+-- A full-screen frame normally starts below the Roblox top bar, leaving a strip
+-- of world visible above it. This stretches it up under the bar and pads the
+-- content back down, so backdrops cover everything and content stays clear.
+function M.coverInset(frame: GuiObject, inset: number)
+	frame.Position = UDim2.new(0, 0, 0, -inset)
+	frame.Size = UDim2.new(1, 0, 1, inset)
+	local pad = frame:FindFirstChildOfClass("UIPadding") or Instance.new("UIPadding", frame)
+	pad.PaddingTop = UDim.new(0, inset)
 end
 
 return M

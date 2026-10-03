@@ -143,7 +143,7 @@ end
 
 function Pads.init()
 	-- One pad in front of each gateway, inside the courtyard
-	local radius = 26 -- inside the sunken plaza, clear of the raised walkway
+	local radius = 30 -- inside the sunken plaza, clear of the raised walkway, dais and planters
 	for i = 1, Config.PAD_COUNT do
 		local angle = (i - 1) / Config.PAD_COUNT * math.pi * 2
 		local pos = Vector3.new(math.round(math.cos(angle)) * radius, 0.5, math.round(math.sin(angle)) * radius)

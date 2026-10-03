@@ -24,25 +24,7 @@
       }
     },
     "Workspace": {
-      "$className": "Workspace",
-      "SpawnLocation": {
-        "$className": "SpawnLocation",
-        "$properties": {
-          "Anchored": true,
-          "Size": [
-            10,
-            1,
-            10
-          ],
-          "Position": [
-            0,
-            1.5,
-            18
-          ],
-          "Transparency": 1,
-          "CanCollide": true
-        }
-      }
+      "$className": "Workspace"
     },
     "VoiceChatService": {
       "$className": "VoiceChatService",
