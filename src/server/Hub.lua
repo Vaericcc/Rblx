@@ -229,11 +229,15 @@ local function buildFloor()
 	fill.Brightness = 0.35
 	fill.Shadows = false
 	fill.Parent = plinth
+	-- Floating sign: anchored to an invisible point straight above the plinth
+	-- (no billboard offset), so it stays centred from every angle.
+	local signAnchor = block(Vector3.new(1, 1, 1), CFrame.new(0, FLOOR_Y + 24, 0), STONE, Enum.Material.SmoothPlastic, "SignAnchor")
+	signAnchor.Transparency = 1
+	signAnchor.CanCollide = false
 	local sign = Instance.new("BillboardGui")
 	sign.Size = UDim2.fromOffset(420, 110)
-	sign.StudsOffset = Vector3.new(0, 15, 0)
 	sign.MaxDistance = 260
-	sign.Parent = plinth
+	sign.Parent = signAnchor
 	local label = Instance.new("TextLabel")
 	label.Size = UDim2.fromScale(1, 1)
 	label.BackgroundTransparency = 1
@@ -470,6 +474,8 @@ function Hub.build()
 	buildWalls()
 	buildPlanters()
 	buildTrees()
+	-- Hall of Fame against the wall between the first gateway and a corner
+	require(script.Parent.Leaderboard).init(CFrame.new(-28, FLOOR_Y + 1.5 + 6.5, -(COURT / 2 - 3)) * CFrame.Angles(0, 0, 0))
 end
 
 Hub.FLOOR_Y = FLOOR_Y

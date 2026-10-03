@@ -10,8 +10,10 @@ local Net = require(Shared.Net)
 local Points = {}
 
 local store = nil
+local ordered = nil
 pcall(function()
 	store = DataStoreService:GetDataStore(Config.POINTS_DATASTORE)
+	ordered = DataStoreService:GetOrderedDataStore(Config.POINTS_DATASTORE .. "_ordered")
 end)
 
 local cache: { [number]: number } = {}
@@ -44,13 +46,43 @@ function Points.add(player: Player, amount: number)
 	Points.push(player)
 	if store then
 		task.spawn(function()
+			local total = nil
 			pcall(function()
-				store:UpdateAsync(key(player.UserId), function(old)
+				total = store:UpdateAsync(key(player.UserId), function(old)
 					return (tonumber(old) or 0) + amount
 				end)
 			end)
+			if ordered and typeof(total) == "number" then
+				pcall(function() ordered:SetAsync(tostring(player.UserId), math.floor(total)) end)
+			end
 		end)
 	end
+end
+
+-- Global top N as { { userId, points } }. Falls back to this server's session
+-- totals when the DataStore is unavailable (e.g. Studio without API access).
+function Points.top(n: number): { { userId: number, points: number } }
+	local out = {}
+	if ordered then
+		local ok, pages = pcall(function() return ordered:GetSortedAsync(false, n) end)
+		if ok and pages then
+			local ok2, page = pcall(function() return pages:GetCurrentPage() end)
+			if ok2 and page then
+				for _, entry in page do
+					local id = tonumber(entry.key)
+					if id then table.insert(out, { userId = id, points = entry.value }) end
+				end
+			end
+		end
+	end
+	if #out == 0 then
+		for userId, pts in cache do
+			if pts > 0 then table.insert(out, { userId = userId, points = pts }) end
+		end
+		table.sort(out, function(a, b) return a.points > b.points end)
+		while #out > n do table.remove(out) end
+	end
+	return out
 end
 
 -- Award a finished round's scores: { [userId] = score }.
