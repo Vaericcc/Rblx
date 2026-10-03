@@ -107,6 +107,12 @@ local handlers: { [string]: (Player, any) -> () } = {
 	[Net.C2S.Submit] = function(player, data)
 		if round then round:onSubmit(player, data) end
 	end,
+	[Net.C2S.LeaveRoom] = function(player)
+		if round then round:removePlayer(player) end
+		Net.remote:FireClient(player, Net.S2C.MatchEnd, nil)
+		Net.remote:FireClient(player, Net.S2C.Teleporting, { message = "Heading back to the hub" })
+		sendHome({ player })
+	end,
 }
 for _, action in { Net.C2S.Claim, Net.C2S.ShowcaseNext, Net.C2S.SkipStory, Net.C2S.Stroke } do
 	handlers[action] = function(player, data)

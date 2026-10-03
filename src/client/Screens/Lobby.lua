@@ -33,6 +33,7 @@ export type Lobby = typeof(setmetatable({} :: {
 	pad: any,
 	points: number,
 	page: string,
+	roomTab: string,
 	visibility: string,
 	heartbeat: RBXScriptConnection?,
 	onUiScale: ((number) -> ())?,
@@ -53,6 +54,7 @@ function Lobby.new(parent: Instance): Lobby
 	self.pad = nil
 	self.points = 0
 	self.page = "join"
+	self.roomTab = "vote"
 	self.visibility = "public"
 	self.menu = nil
 	local compact = Responsive.isCompact()
@@ -190,16 +192,22 @@ function Lobby.render(self: Lobby)
 	local menu = self.menu
 	if not menu then return end
 	local active = self:activeRoom()
+	if self.page == "room" and not active then self.page = "join" end
+
+	if self.page == "room" then
+		self:renderRoomMenu(menu, active)
+		return
+	end
+
 	local items: { Menu.Item } = {
 		{ id = "join", label = "JOIN", onClick = function() self.page = "join" self:render() end },
 		{ id = "create", label = "CREATE", onClick = function() self.page = "create" self:render() end },
 	}
 	if active then
-		table.insert(items, { id = "room", label = if active.kind == "pad" then "PLATFORM" else "YOUR ROOM", accent = true, onClick = function() self.page = "room" self:render() end })
+		table.insert(items, { id = "room", label = if active.kind == "pad" then "PLATFORM" else "YOUR ROOM", accent = true, onClick = function() self.page = "room" self.roomTab = "vote" self:render() end })
 	end
 	table.insert(items, { id = "settings", label = "SETTINGS", onClick = function() self.page = "settings" self:render() end })
 	table.insert(items, { id = "close", label = "CLOSE", onClick = function() self:closeMenu() end })
-	if self.page == "room" and not active then self.page = "join" end
 	menu:setItems(items)
 	menu:select(self.page)
 
@@ -209,9 +217,122 @@ function Lobby.render(self: Lobby)
 	end
 	menu:clearContent()
 	local body = menu:content()
-	if self.page == "join" then self:renderJoin(body)
-	elseif self.page == "create" then self:renderCreate(body)
-	else self:renderRoom(body, active) end
+	if self.page == "join" then self:renderJoin(body) else self:renderCreate(body) end
+end
+
+-- The room is a menu of actions, Persona-shop style; the paper shows the chosen sub-page.
+function Lobby.renderRoomMenu(self: Lobby, menu: Menu.Menu, room: any)
+	local me = Players.LocalPlayer.UserId
+	local isPad = room.kind == "pad"
+	local isHost = room.hostId == me
+	local enough = #room.members >= room.minPlayers
+	local items: { Menu.Item } = {}
+	if not isPad then
+		table.insert(items, {
+			id = "start",
+			label = if isHost then (if enough then "START MATCH" else ("NEED %d PLAYERS"):format(room.minPlayers)) else "WAITING FOR HOST",
+			accent = true,
+			disabled = not (isHost and enough),
+			onClick = function() if isHost and enough then send(Net.C2S.StartRoom) end end,
+		})
+	end
+	table.insert(items, { id = "vote", label = "VOTE MODE", onClick = function() self.roomTab = "vote" self:render() end })
+	if room.likelyModeId == "versus" then
+		table.insert(items, { id = "teams", label = "TEAMS", onClick = function() self.roomTab = "teams" self:render() end })
+	end
+	table.insert(items, { id = "players", label = ("PLAYERS  %d/%d"):format(#room.members, room.maxPlayers), onClick = function() self.roomTab = "players" self:render() end })
+	if not isPad then
+		table.insert(items, { id = "leave", label = "LEAVE ROOM", onClick = function() send(Net.C2S.LeaveRoom) end })
+	end
+	table.insert(items, { id = "back", label = "BACK", onClick = function() self.page = "join" self:render() end })
+	menu:setItems(items)
+	menu:select(self.roomTab)
+
+	menu:clearContent()
+	local body = menu:content()
+	Menu.heading(body, if isPad then ("PLATFORM %d"):format(room.padIndex or 0) else ("%s'S ROOM"):format(room.hostName:upper()))
+	if self.roomTab == "players" then
+		self:renderPlayers(body, room)
+	elseif self.roomTab == "teams" then
+		self:renderTeams(body, room)
+	else
+		Menu.text(body, if isPad then "The match starts automatically once enough people are on the platform." else "Pick the mode you want. The most voted mode plays.", 13, true)
+		local myVote: string? = nil
+		for _, m in room.members do if m.userId == me then myVote = m.vote end end
+		ModeGrid.build(body, {
+			modes = self.init.modes, votes = room.votes or {}, myVote = myVote, playerCount = #room.members,
+			likelyModeId = room.likelyModeId, onVote = function(modeId) send(Net.C2S.VoteMode, modeId) end, comic = true,
+		})
+	end
+end
+
+local function teamColor(colors: any, t: number): Color3
+	local c = colors and colors[t]
+	return if c then Color3.fromRGB(c.r, c.g, c.b) else Theme.accent2
+end
+
+function Lobby.renderPlayers(self: Lobby, body: Instance, room: any)
+	local me = Players.LocalPlayer.UserId
+	local isPad = room.kind == "pad"
+	local isHost = room.hostId == me
+	local teamOf: { [number]: number } = {}
+	for _, t in room.teams or {} do teamOf[t.userId] = t.team end
+	Menu.text(body, if isPad then "Step off the platform to leave." else (VIS_NAME[room.visibility] or "") .. " room.", 13, true)
+	for _, m in room.members do
+		local row = Make("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 34), ZIndex = 306, Parent = body })
+		local tag = if m.userId == room.hostId and not isPad then "  👑" elseif m.userId == me then "  (you)" else ""
+		Make.label(m.name .. tag, 16, { Font = Theme.fontBody, TextColor3 = Theme.ink, Size = UDim2.new(1, -200, 1, 0), TextYAlignment = Enum.TextYAlignment.Center, ZIndex = 306, Parent = row })
+		local t = teamOf[m.userId]
+		if t then
+			Make("Frame", { BackgroundColor3 = teamColor(room.teamColors, t), Size = UDim2.fromOffset(14, 14), AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -110, 0.5, 0), ZIndex = 306, Make.corner(UDim.new(0.5, 0)), Parent = row })
+		end
+		if isHost and not isPad and m.userId ~= me then
+			Menu.button(row, "REMOVE", Theme.cream, function() send(Net.C2S.KickPlayer, m.userId) end,
+				{ Size = UDim2.fromOffset(100, 28), TextSize = 14, AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, 0, 0.5, 0) })
+		end
+	end
+end
+
+function Lobby.renderTeams(self: Lobby, body: Instance, room: any)
+	local me = Players.LocalPlayer.UserId
+	local isPad = room.kind == "pad"
+	local isHost = room.hostId == me
+	local teamOf: { [number]: number } = {}
+	for _, t in room.teams or {} do teamOf[t.userId] = t.team end
+	local count = room.teamCount or 2
+	if not isPad then
+		local modeRow = Make.row(Responsive.touchSize() - 8, 6, { ZIndex = 306, Parent = body })
+		for _, def in { { "random", "RANDOM" }, { "pick", "PICK" }, { "assign", "HOST ASSIGNS" } } do
+			Menu.button(modeRow, def[2], if room.teamMode == def[1] then Theme.pop else Theme.cream, function()
+				if isHost then send(Net.C2S.SetTeamMode, def[1]) end
+			end, { Size = UDim2.new(1 / 3, -4, 1, 0), TextSize = 14 })
+		end
+		if not isHost then Menu.text(body, "Only the host can change how teams are picked.", 12, true) end
+	end
+	if room.teamMode == "random" or isPad then
+		Menu.text(body, ("%d teams, dealt at random when the match starts."):format(count), 13, true)
+		return
+	end
+	for t = 1, count do
+		local trow = Make("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, ZIndex = 306, Make.list(nil, 4), Parent = body })
+		local names = {}
+		for _, m in room.members do if teamOf[m.userId] == t then table.insert(names, m.name) end end
+		local cname = room.teamColors and room.teamColors[t] and room.teamColors[t].name or tostring(t)
+		Menu.button(trow, ("TEAM %s  (%d)"):format(cname:upper(), #names), teamColor(room.teamColors, t), function()
+			if room.teamMode == "pick" then send(Net.C2S.PickTeam, t) end
+		end, { TextColor3 = Theme.ink, TextSize = 16, Size = UDim2.new(1, 0, 0, 36) })
+		Menu.text(trow, if #names > 0 then table.concat(names, ", ") else "nobody yet", 12, true)
+		if room.teamMode == "assign" and isHost then
+			local pickRow = Make.row(28, 4, { ZIndex = 306, Parent = trow })
+			for _, m in room.members do
+				if teamOf[m.userId] ~= t then
+					Menu.button(pickRow, "+ " .. m.name, Theme.cream, function()
+						send(Net.C2S.PickTeam, { userId = m.userId, team = t })
+					end, { Size = UDim2.fromOffset(110, 26), TextSize = 12 })
+				end
+			end
+		end
+	end
 end
 
 function Lobby.voiceBlocked(self: Lobby): boolean
@@ -278,102 +399,6 @@ function Lobby.renderCreate(self: Lobby, body: Instance)
 	Menu.button(card, if canCreate then "CREATE ROOM" else "LEAVE YOUR ROOM FIRST", if canCreate then Theme.pop else Theme.creamDark, function()
 		if canCreate then send(Net.C2S.CreateRoom, { visibility = self.visibility }) end
 	end)
-end
-
-local function teamColor(colors: any, t: number): Color3
-	local c = colors and colors[t]
-	return if c then Color3.fromRGB(c.r, c.g, c.b) else Theme.accent2
-end
-
-function Lobby.renderRoom(self: Lobby, body: Instance, room: any)
-	local me = Players.LocalPlayer.UserId
-	local isPad = room.kind == "pad"
-	local isHost = room.hostId == me
-	Menu.heading(body, if isPad then ("PLATFORM %d"):format(room.padIndex or 0) else ("%s'S ROOM"):format(room.hostName:upper()))
-	Menu.text(body, if isPad then "Everyone standing on the platform plays. The match starts automatically once enough people are on it. Step off to leave."
-		else (VIS_NAME[room.visibility] or "") .. ". The host starts the match.", 13, true)
-
-	-- Members
-	local teamOf: { [number]: number } = {}
-	for _, t in room.teams or {} do teamOf[t.userId] = t.team end
-	local card = Menu.card(body)
-	Menu.heading(card, ("%d/%d PLAYERS"):format(#room.members, room.maxPlayers), 16)
-	for _, m in room.members do
-		local row = Make("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 32), ZIndex = 306, Parent = card })
-		local tag = if m.userId == room.hostId and not isPad then "  👑" elseif m.userId == me then "  (you)" else ""
-		local t = teamOf[m.userId]
-		Make.label(m.name .. tag, 14, { Font = Theme.fontBody, TextColor3 = Theme.ink, Size = UDim2.new(1, -200, 1, 0), TextYAlignment = Enum.TextYAlignment.Center, ZIndex = 306, Parent = row })
-		if t then
-			Make("Frame", { BackgroundColor3 = teamColor(room.teamColors, t), Size = UDim2.fromOffset(14, 14), AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -100, 0.5, 0), ZIndex = 306, Make.corner(UDim.new(0.5, 0)), Parent = row })
-		end
-		if isHost and not isPad and m.userId ~= me then
-			Menu.button(row, "REMOVE", Theme.cream, function() send(Net.C2S.KickPlayer, m.userId) end,
-				{ Size = UDim2.fromOffset(92, 28), TextSize = 14, AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, 0, 0.5, 0) })
-		end
-	end
-
-	-- Actions
-	if not isPad then
-		local enough = #room.members >= room.minPlayers
-		local actions = Make.row(Responsive.touchSize(), 8, { ZIndex = 306, Parent = body })
-		if isHost then
-			Menu.button(actions, if enough then "START MATCH" else ("NEED %d PLAYERS"):format(room.minPlayers), if enough then Theme.pop else Theme.creamDark, function()
-				if enough then send(Net.C2S.StartRoom) end
-			end, { Size = UDim2.new(0.6, -4, 1, 0) })
-		else
-			Menu.text(actions, if enough then "Waiting for the host..." else ("Waiting for players (%d needed)"):format(room.minPlayers), 14)
-		end
-		Menu.button(actions, "LEAVE", Theme.cream, function() send(Net.C2S.LeaveRoom) end, { Size = UDim2.new(0.4, -4, 1, 0) })
-	end
-
-	-- Teams (VS Comic)
-	if room.likelyModeId == "versus" then
-		local teams = Menu.card(body)
-		Menu.heading(teams, "TEAMS", 16)
-		local count = room.teamCount or 2
-		if not isPad then
-			local modeRow = Make.row(Responsive.touchSize() - 8, 6, { ZIndex = 306, Parent = teams })
-			for _, def in { { "random", "RANDOM" }, { "pick", "PICK" }, { "assign", "HOST ASSIGNS" } } do
-				Menu.button(modeRow, def[2], if room.teamMode == def[1] then Theme.pop else Theme.cream, function()
-					if isHost then send(Net.C2S.SetTeamMode, def[1]) end
-				end, { Size = UDim2.new(1 / 3, -4, 1, 0), TextSize = 14 })
-			end
-			if not isHost then Menu.text(teams, "Only the host can change how teams are picked.", 12, true) end
-		end
-		if room.teamMode == "random" or isPad then
-			Menu.text(teams, ("%d teams, dealt at random when the match starts."):format(count), 13, true)
-		else
-			for t = 1, count do
-				local trow = Make("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, ZIndex = 306, Make.list(nil, 4), Parent = teams })
-				local names = {}
-				for _, m in room.members do if teamOf[m.userId] == t then table.insert(names, m.name) end end
-				local cname = room.teamColors and room.teamColors[t] and room.teamColors[t].name or tostring(t)
-				Menu.button(trow, ("TEAM %s  (%d)"):format(cname:upper(), #names), teamColor(room.teamColors, t), function()
-					if room.teamMode == "pick" then send(Net.C2S.PickTeam, t) end
-				end, { TextColor3 = Theme.ink, TextSize = 16, Size = UDim2.new(1, 0, 0, 36) })
-				Menu.text(trow, if #names > 0 then table.concat(names, ", ") else "nobody yet", 12, true)
-				if room.teamMode == "assign" and isHost then
-					local pickRow = Make.row(28, 4, { ZIndex = 306, Parent = trow })
-					for _, m in room.members do
-						if teamOf[m.userId] ~= t then
-							Menu.button(pickRow, "+ " .. m.name, Theme.cream, function()
-								send(Net.C2S.PickTeam, { userId = m.userId, team = t })
-							end, { Size = UDim2.fromOffset(110, 26), TextSize = 12 })
-						end
-					end
-				end
-			end
-		end
-	end
-
-	-- Mode vote
-	Menu.heading(body, "VOTE FOR A MODE", 18)
-	local myVote: string? = nil
-	for _, m in room.members do if m.userId == me then myVote = m.vote end end
-	ModeGrid.build(body, {
-		modes = self.init.modes, votes = room.votes or {}, myVote = myVote, playerCount = #room.members,
-		likelyModeId = room.likelyModeId, onVote = function(modeId) send(Net.C2S.VoteMode, modeId) end, comic = true,
-	})
 end
 
 function Lobby.destroy(self: Lobby)

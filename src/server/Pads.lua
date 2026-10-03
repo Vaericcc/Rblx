@@ -71,8 +71,8 @@ local function buildPad(index: number, position: Vector3): Pad
 	rim.Parent = part
 
 	local billboard = Instance.new("BillboardGui")
-	billboard.Size = UDim2.fromOffset(260, 90)
-	billboard.StudsOffset = Vector3.new(0, 5, 0)
+	billboard.Size = UDim2.fromOffset(200, 64)
+	billboard.StudsOffset = Vector3.new(0, 3.2, 0)
 	billboard.AlwaysOnTop = false
 	billboard.MaxDistance = 120
 	billboard.Parent = part
@@ -88,21 +88,21 @@ local function buildPad(index: number, position: Vector3): Pad
 	corner.Parent = bg
 
 	local label = Instance.new("TextLabel")
-	label.Size = UDim2.new(1, -16, 0, 40)
-	label.Position = UDim2.fromOffset(8, 8)
+	label.Size = UDim2.new(1, -16, 0, 28)
+	label.Position = UDim2.fromOffset(8, 6)
 	label.BackgroundTransparency = 1
 	label.Font = Enum.Font.GothamBold
-	label.TextSize = 26
+	label.TextSize = 20
 	label.TextColor3 = color
 	label.Text = ("PLATFORM %d"):format(index)
 	label.Parent = bg
 
 	local sub = Instance.new("TextLabel")
-	sub.Size = UDim2.new(1, -16, 0, 30)
-	sub.Position = UDim2.fromOffset(8, 50)
+	sub.Size = UDim2.new(1, -16, 0, 22)
+	sub.Position = UDim2.fromOffset(8, 34)
 	sub.BackgroundTransparency = 1
 	sub.Font = Enum.Font.Gotham
-	sub.TextSize = 18
+	sub.TextSize = 14
 	sub.TextColor3 = Color3.fromRGB(245, 245, 250)
 	sub.Text = "Stand here to play"
 	sub.Parent = bg

@@ -127,32 +127,31 @@ local function buildLighting()
 	color.Parent = Lighting
 end
 
--- Grass hill in stepped terraces, with the courtyard cut out of the middle.
+-- Grass hill: concentric square rings that step DOWN away from the walls,
+-- so the courtyard reads as cut into a mound.
 local function buildHill()
-	local outer = COURT / 2 + WALL_T + 4
+	local inner = COURT / 2 + WALL_T + 2
+	local ringW = 16
 	for t = 1, TERRACES do
-		local size = HILL_SIZE - (t - 1) * 60
-		local top = FLOOR_Y + WALL_H - (t - 1) * 7 -- terraces step down toward the walls
-		local thickness = 7
+		local lo = inner + (t - 1) * ringW
+		local hi = lo + ringW
+		local top = FLOOR_Y + WALL_H - 2 - (t - 1) * 6
+		local thick = 6 + (t - 1) * 6 -- deeper rings further out so the mound has a solid side
 		local color = if t % 2 == 0 then GRASS_DARK else GRASS
-		local half = size / 2
-		-- four slabs around the hole so the courtyard stays open
-		local hole = if t == 1 then outer else outer + (t - 1) * 12
-		local span = half - hole
-		if span <= 0 then continue end
 		for _, def in {
-			{ Vector3.new(size, thickness, span), Vector3.new(0, 0, -(hole + span / 2)) },
-			{ Vector3.new(size, thickness, span), Vector3.new(0, 0, hole + span / 2) },
-			{ Vector3.new(span, thickness, hole * 2), Vector3.new(-(hole + span / 2), 0, 0) },
-			{ Vector3.new(span, thickness, hole * 2), Vector3.new(hole + span / 2, 0, 0) },
+			{ Vector3.new(hi * 2, thick, ringW), Vector3.new(0, 0, -(lo + ringW / 2)) },
+			{ Vector3.new(hi * 2, thick, ringW), Vector3.new(0, 0, lo + ringW / 2) },
+			{ Vector3.new(ringW, thick, lo * 2), Vector3.new(-(lo + ringW / 2), 0, 0) },
+			{ Vector3.new(ringW, thick, lo * 2), Vector3.new(lo + ringW / 2, 0, 0) },
 		} do
-			block(def[1], CFrame.new(def[2] + Vector3.new(0, top - thickness / 2, 0)), color, Enum.Material.Grass, "Terrace")
-			-- soil face
-			block(Vector3.new(def[1].X, 1.2, def[1].Z), CFrame.new(def[2] + Vector3.new(0, top - thickness - 0.6, 0)), SOIL, Enum.Material.Ground, "Soil")
+			block(def[1], CFrame.new(def[2] + Vector3.new(0, top - thick / 2, 0)), color, Enum.Material.Grass, "Terrace")
+			block(Vector3.new(def[1].X, 1.2, def[1].Z), CFrame.new(def[2] + Vector3.new(0, top - thick - 0.6, 0)), SOIL, Enum.Material.Ground, "Soil")
 		end
 	end
-	-- Deep base so nothing floats
-	block(Vector3.new(HILL_SIZE + 40, 30, HILL_SIZE + 40), CFrame.new(0, FLOOR_Y - 18, 0), SOIL, Enum.Material.Ground, "Base")
+	-- Flat meadow beyond the mound, and a deep base so nothing floats
+	local meadowTop = FLOOR_Y + WALL_H - 2 - TERRACES * 6
+	block(Vector3.new(HILL_SIZE + 200, 4, HILL_SIZE + 200), CFrame.new(0, meadowTop - 2, 0), GRASS, Enum.Material.Grass, "Meadow")
+	block(Vector3.new(HILL_SIZE + 200, 30, HILL_SIZE + 200), CFrame.new(0, meadowTop - 19, 0), SOIL, Enum.Material.Ground, "Base")
 end
 
 -- Flagstone floor: alternating pale/grey tiles with a darker border and a dais.
@@ -166,7 +165,7 @@ local function buildFloor()
 			local z = -COURT / 2 + iz * tile + tile / 2
 			local ring = math.min(ix, iz, n - 1 - ix, n - 1 - iz)
 			local raised = ring < walk
-			local color = if raised then (if (ix + iz) % 2 == 0 then STONE else STONE_DARK) elseif (ix + iz) % 2 == 0 then STONE_PALE else STONE_LIGHT
+			local color = if raised then (if (ix + iz) % 2 == 0 then STONE_LIGHT else STONE) elseif (ix + iz) % 2 == 0 then Color3.fromRGB(222, 220, 214) else STONE_PALE
 			local y = if raised then FLOOR_Y + 1.5 else FLOOR_Y
 			block(Vector3.new(tile - 0.25, 1, tile - 0.25), CFrame.new(x, y - 0.5, z), color, Enum.Material.Slate, "Flag")
 		end
@@ -202,6 +201,13 @@ local function buildFloor()
 	light.Range = 22
 	light.Brightness = 0.7
 	light.Parent = plinth
+	-- Soft fill so the sunken floor isn't permanently in the walls' shadow
+	local fill = Instance.new("PointLight")
+	fill.Color = Color3.fromRGB(230, 236, 255)
+	fill.Range = 110
+	fill.Brightness = 0.35
+	fill.Shadows = false
+	fill.Parent = plinth
 	local sign = Instance.new("BillboardGui")
 	sign.Size = UDim2.fromOffset(420, 110)
 	sign.StudsOffset = Vector3.new(0, 15, 0)
@@ -226,8 +232,8 @@ local function buildGateway(cf: CFrame)
 	for side = -1, 1, 2 do
 		local x = side * (gapW / 2 + pierW / 2)
 		masonry(cf * CFrame.new(x, 0, 0), pierW, archH, WALL_T + 2, "Pier")
-		-- engaged column on the courtyard face, with base and capital
-		local colZ = -WALL_T / 2 - 1.6
+		-- engaged column on the courtyard face (+z is the courtyard side), with base and capital
+		local colZ = WALL_T / 2 + 1.6
 		part({ Name = "ColumnBase", Size = Vector3.new(2.6, 1, 2.6), CFrame = cf * CFrame.new(x, 0.5, colZ), Color = STONE_LIGHT })
 		part({ Name = "Column", Shape = Enum.PartType.Cylinder, Size = Vector3.new(archH - 2, 2, 2), CFrame = cf * CFrame.new(x, archH / 2, colZ) * CFrame.Angles(0, 0, math.rad(90)), Color = STONE_PALE, Material = Enum.Material.Marble })
 		part({ Name = "Capital", Size = Vector3.new(2.8, 1.2, 2.8), CFrame = cf * CFrame.new(x, archH - 0.4, colZ), Color = STONE_LIGHT })
@@ -244,28 +250,41 @@ local function buildGateway(cf: CFrame)
 		local halfSpan = gapW / 2 * (1 - frac * frac)
 		local y = archH + (i - 1) * (peak - archH) / steps
 		for side = -1, 1, 2 do
-			local tilt = side * frac * 55
-			block(Vector3.new(3.2, 2, WALL_T + 3), cf * CFrame.new(side * (halfSpan + 1.5), y, 0) * CFrame.Angles(0, 0, math.rad(tilt)),
+			-- radial stones: upright at the spring, lying flat at the peak
+			local tilt = -side * (90 - 82 * frac)
+			block(Vector3.new(3.4, 2.2, WALL_T + 4), cf * CFrame.new(side * (halfSpan + 1.5), y, 0) * CFrame.Angles(0, 0, math.rad(tilt)),
 				if i % 2 == 0 then STONE_LIGHT else STONE_PALE, Enum.Material.Slate, "Voussoir")
 		end
 	end
-	block(Vector3.new(3.6, 3.2, WALL_T + 3.4), cf * CFrame.new(0, peak + 0.6, 0), STONE_PALE, Enum.Material.Slate, "Keystone")
+	block(Vector3.new(3.6, 3.2, WALL_T + 4.4), cf * CFrame.new(0, peak + 0.6, 0), STONE_PALE, Enum.Material.Slate, "Keystone")
 	-- Masonry above the arch up to the parapet, and the dark doorway recessed behind
 	local above = WALL_H - (peak + 2)
 	if above > 0 then
 		masonry(cf * CFrame.new(0, peak + 2, 0), total, above, WALL_T, "Lintel")
 	end
-	block(Vector3.new(gapW, peak, 1), cf * CFrame.new(0, peak / 2, WALL_T / 2 + 2), Color3.fromRGB(10, 10, 14), Enum.Material.SmoothPlastic, "Doorway")
-	-- Tunnel walls so the opening has depth instead of a flat black slab
+	-- The opening is a real tunnel through the wall: stone reveals either side, a
+	-- vaulted top, and a dark back wall set deep so it reads as depth, with a dim lamp.
+	local depth = WALL_T + 8
 	for side = -1, 1, 2 do
-		block(Vector3.new(1, peak, 4), cf * CFrame.new(side * (gapW / 2 + 0.5), peak / 2, WALL_T / 2 + 2), STONE_DARK, Enum.Material.Slate, "Reveal")
+		block(Vector3.new(1.2, peak, depth), cf * CFrame.new(side * (gapW / 2 + 0.6), peak / 2, -(depth - WALL_T) / 2), STONE_DARK, Enum.Material.Slate, "Reveal")
 	end
-	block(Vector3.new(gapW + 2, 1, 4), cf * CFrame.new(0, peak + 0.5, WALL_T / 2 + 2), STONE_DARK, Enum.Material.Slate, "RevealTop")
+	block(Vector3.new(gapW + 2.4, 1.2, depth), cf * CFrame.new(0, peak + 0.6, -(depth - WALL_T) / 2), STONE_DARK, Enum.Material.Slate, "Vault")
+	block(Vector3.new(gapW, peak, 1), cf * CFrame.new(0, peak / 2, -(depth - WALL_T / 2)), Color3.fromRGB(10, 10, 14), Enum.Material.SmoothPlastic, "Doorway")
+	local lamp = block(Vector3.new(1, 1, 1), cf * CFrame.new(0, peak - 2, -(depth - WALL_T / 2) + 1), TORCH, Enum.Material.Neon, "TunnelLamp")
+	local tl = Instance.new("PointLight")
+	tl.Color = TORCH
+	tl.Range = 16
+	tl.Brightness = 1
+	tl.Parent = lamp
+	-- Iron portcullis bars so the void reads as a gate
+	for i = -3, 3 do
+		block(Vector3.new(0.3, peak - 1, 0.3), cf * CFrame.new(i * (gapW / 7), (peak - 1) / 2, -(depth - WALL_T / 2) + 2.5), Color3.fromRGB(40, 36, 34), Enum.Material.Metal, "Bar")
+	end
 	-- Torches flanking the doorway
 	for side = -1, 1, 2 do
 		local tx = side * (gapW / 2 + 1)
-		local bracket = block(Vector3.new(0.6, 2.4, 0.6), cf * CFrame.new(tx, 9, -WALL_T / 2 - 0.6), Color3.fromRGB(40, 36, 34), Enum.Material.Metal, "Bracket")
-		local flame = block(Vector3.new(1, 1.4, 1), cf * CFrame.new(tx, 10.6, -WALL_T / 2 - 0.6), TORCH, Enum.Material.Neon, "Flame")
+		local bracket = block(Vector3.new(0.6, 2.4, 0.6), cf * CFrame.new(tx + side * 2.2, 9, WALL_T / 2 + 0.8), Color3.fromRGB(40, 36, 34), Enum.Material.Metal, "Bracket")
+		local flame = block(Vector3.new(1, 1.4, 1), cf * CFrame.new(tx + side * 2.2, 10.6, WALL_T / 2 + 0.8), TORCH, Enum.Material.Neon, "Flame")
 		local l = Instance.new("PointLight")
 		l.Color = TORCH
 		l.Range = 22
@@ -289,12 +308,14 @@ local function buildWalls()
 		local wallCf = rot * CFrame.new(0, FLOOR_Y, -half) -- wall plane facing inward
 		for dir = -1, 1, 2 do
 			masonry(wallCf * CFrame.new(dir * (gateTotal / 2 + segment / 2), 0, 0), segment, WALL_H, WALL_T, "Wall")
-			-- buttress
+			-- pilaster on the courtyard face
 			local bx = dir * (gateTotal / 2 + segment * 0.55)
-			block(Vector3.new(4, WALL_H - 4, WALL_T + 4), wallCf * CFrame.new(bx, (WALL_H - 4) / 2, 0), STONE_DARK, Enum.Material.Slate, "Buttress")
-			block(Vector3.new(5, 1.5, WALL_T + 5), wallCf * CFrame.new(bx, WALL_H - 3.25, 0), STONE_LIGHT, Enum.Material.Slate, "ButtressCap")
-			-- tall slit window
-			block(Vector3.new(1.6, 9, 0.4), wallCf * CFrame.new(bx + dir * 9, WALL_H * 0.55, -WALL_T / 2 - 0.1), Color3.fromRGB(14, 14, 18), Enum.Material.SmoothPlastic, "Window")
+			block(Vector3.new(3, WALL_H - 2, 1.6), wallCf * CFrame.new(bx, (WALL_H - 2) / 2, WALL_T / 2 + 0.8), STONE_DARK, Enum.Material.Slate, "Pilaster")
+			block(Vector3.new(3.8, 1.2, 2.4), wallCf * CFrame.new(bx, WALL_H - 1.4, WALL_T / 2 + 1.2), STONE_LIGHT, Enum.Material.Slate, "PilasterCap")
+			-- tall slit window with a lit interior
+			block(Vector3.new(1.6, 9, 0.6), wallCf * CFrame.new(bx + dir * 9, WALL_H * 0.55, WALL_T / 2 + 0.2), Color3.fromRGB(14, 14, 18), Enum.Material.SmoothPlastic, "Window")
+			local glow = block(Vector3.new(1.2, 8, 0.2), wallCf * CFrame.new(bx + dir * 9, WALL_H * 0.55, WALL_T / 2 + 0.45), Color3.fromRGB(255, 200, 120), Enum.Material.Neon, "WindowGlow")
+			glow.Transparency = 0.6
 		end
 		-- parapet along the top
 		block(Vector3.new(COURT + WALL_T * 2, 1.5, WALL_T + 2), wallCf * CFrame.new(0, WALL_H + 0.75, 0), STONE_LIGHT, Enum.Material.Slate, "Parapet")
@@ -362,12 +383,12 @@ end
 
 local function buildTrees()
 	local models = treeModels()
-	local outer = COURT / 2 + WALL_T + 26
+	local inner = COURT / 2 + WALL_T + 2
 	local positions = {}
-	for t = 1, TERRACES do
-		local ring = outer + (t - 1) * 14 + 6
-		local top = FLOOR_Y + WALL_H - (t - 1) * 7
-		local count = 10 + t * 2
+	for t = 2, TERRACES do
+		local ring = inner + (t - 1) * 16 + 8
+		local top = FLOOR_Y + WALL_H - 2 - (t - 1) * 6
+		local count = 10 + t * 3
 		for i = 1, count do
 			local a = i / count * math.pi * 2 + rng:NextNumber(-0.1, 0.1)
 			-- square-ish ring so trees follow the terraces
@@ -378,6 +399,15 @@ local function buildTrees()
 			if math.abs(x) < 16 or math.abs(z) < 16 then continue end
 			table.insert(positions, Vector3.new(x, top, z))
 		end
+	end
+	-- a loose belt of trees on the meadow beyond the mound
+	local meadowTop = FLOOR_Y + WALL_H - 2 - TERRACES * 6
+	for i = 1, 40 do
+		local a = i / 40 * math.pi * 2 + rng:NextNumber(-0.08, 0.08)
+		local r = inner + TERRACES * 16 + rng:NextNumber(10, 60)
+		local x, z = math.cos(a) * r, math.sin(a) * r
+		if math.abs(x) < 18 or math.abs(z) < 18 then continue end
+		table.insert(positions, Vector3.new(x, meadowTop, z))
 	end
 	for _, pos in positions do
 		if #models > 0 then

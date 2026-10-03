@@ -100,9 +100,16 @@ function Hud.new(parent: Instance): Hud
 
 	self.conn = RunService.Heartbeat:Connect(function()
 		if self.endsAt then
-			local remaining = math.max(0, self.endsAt - workspace:GetServerTimeNow())
-			self.timer.Text = ("%d:%02d"):format(remaining // 60, remaining % 60)
-			self.timer.TextColor3 = if remaining <= 10 then Theme.danger else Theme.accent
+			local remaining = self.endsAt - workspace:GetServerTimeNow()
+			if remaining < -4 then
+				self.timer.Text = "..."
+				self.instructions.Text = "Waiting for the server to move on"
+				self.timer.TextColor3 = Theme.textDim
+			else
+				remaining = math.max(0, remaining)
+				self.timer.Text = ("%d:%02d"):format(remaining // 60, remaining % 60)
+				self.timer.TextColor3 = if remaining <= 10 then Theme.danger else Theme.accent
+			end
 		else
 			self.timer.Text = ""
 		end

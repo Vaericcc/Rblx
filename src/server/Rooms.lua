@@ -400,8 +400,11 @@ function Rooms.leave(player: Player)
 			room.round:removePlayer(player)
 			VoiceIsolation.release({ player })
 			VoiceIsolation.isolate(room.round.players)
+			Studios.leave({ player })
 		end
+		fire(player, Net.S2C.MatchEnd, nil)
 		fire(player, Net.S2C.RoomState, nil)
+		Rooms.pushListTo(player)
 		Rooms.pushMembers(room)
 		return
 	end

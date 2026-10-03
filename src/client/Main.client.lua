@@ -207,12 +207,17 @@ buildChrome()
 ----------------------------------------------------------------------------
 -- Match / lobby switching
 
+local setOverlay -- defined below
+local current: any = nil
 local function setInMatch(active: boolean)
 	if inMatch == active then return end
 	inMatch = active
 	matchRoot.Visible = active
 	lobby:setVisible(not active)
 	Controls.setGameplayEnabled(not active)
+	if active and not current and setOverlay then
+		setOverlay("Setting up your match")
+	end
 end
 
 ----------------------------------------------------------------------------
@@ -255,7 +260,6 @@ end
 ----------------------------------------------------------------------------
 -- Screen mounting
 
-local current: any = nil
 local autoSubmitThread: thread? = nil
 
 local ctx = {
@@ -289,6 +293,7 @@ end
 local function mount(screenFn: (Frame, any, any) -> any, data: any, endsAt: number?)
 	setInMatch(true)
 	unmount()
+	setOverlay(nil)
 	ctx.hud = hud
 	current = screenFn(content, data, ctx)
 	if current.collect then
@@ -319,7 +324,7 @@ local PHASE_SCREENS: { [string]: (Frame, any, any) -> any } = {
 
 local overlay: Frame? = nil
 local overlayLabel: TextLabel? = nil
-local function setOverlay(message: string?)
+function setOverlay(message: string?)
 	if not message then
 		if overlay then overlay:Destroy() overlay = nil overlayLabel = nil end
 		return

@@ -18,7 +18,7 @@ export type Opts = {
 
 function ModeGrid.build(parent: Instance, opts: Opts): Frame
 	local compact = Responsive.isCompact()
-	local CARD_H, GAP = 140, 12
+	local CARD_H, GAP = 176, 12
 	local rows = math.ceil(#opts.modes / 2)
 	local grid = Make("Frame", {
 		BackgroundTransparency = 1,
@@ -84,7 +84,7 @@ function ModeGrid.build(parent: Instance, opts: Opts): Frame
 		end
 		Make.heading(header, 18, { RichText = true, Font = if comic then Theme.fontDisplay else Theme.font, TextColor3 = fg, Size = UDim2.new(1, 0, 0, 22), Parent = card })
 		Make.label(mode.tagline, 13, { TextColor3 = if comic then Theme.pop else Theme.accent2, Font = Theme.font, Size = UDim2.new(1, 0, 0, 16), Parent = card })
-		Make.label(("<font color=\"%s\">%s</font>"):format(dim, mode.description), 12, { RichText = true, Size = UDim2.new(1, -40, 0, if compact then 0 else 48), AutomaticSize = if compact then Enum.AutomaticSize.Y else Enum.AutomaticSize.None, Parent = card })
+		Make.label(("<font color=\"%s\">%s</font>"):format(dim, mode.description), 12, { RichText = true, TextTruncate = Enum.TextTruncate.AtEnd, Size = UDim2.new(1, -40, 0, if compact then 0 else 64), AutomaticSize = if compact then Enum.AutomaticSize.Y else Enum.AutomaticSize.None, Parent = card })
 		if locked then
 			Make.label(("Needs %d players"):format(mode.minPlayers), 12, { TextColor3 = if comic then Theme.pop else Theme.danger, Size = UDim2.new(1, 0, 0, 14), Parent = card })
 		end

@@ -184,7 +184,7 @@ function Menu.open(opts: Opts): Menu
 	self.paper = Make("Frame", {
 		BackgroundColor3 = Theme.cream,
 		Position = if compact then UDim2.new(0, 12, 0, 0) else UDim2.fromScale(0.52, 0.1),
-		Size = if compact then UDim2.new(1, -24, 0, 0) else UDim2.fromScale(0.44, 0.8),
+		Size = if compact then UDim2.new(1, -24, 0, 200) else UDim2.new(0.44, 0, 0, 200),
 		Rotation = if compact then 0 else -1.2,
 		ZIndex = 304,
 		Visible = false,
@@ -197,6 +197,7 @@ function Menu.open(opts: Opts): Menu
 		BackgroundTransparency = 1,
 		Size = UDim2.fromScale(1, 1),
 		AutomaticCanvasSize = Enum.AutomaticSize.Y,
+		ClipsDescendants = true,
 		CanvasSize = UDim2.new(),
 		ScrollBarThickness = 6,
 		ScrollBarImageColor3 = Theme.ink,
@@ -205,6 +206,20 @@ function Menu.open(opts: Opts): Menu
 		Make("UIPadding", { PaddingRight = UDim.new(0, 12) }),
 		Parent = self.paper,
 	})
+
+	-- Paper grows with its content up to most of the screen, then scrolls.
+	self.paperBody:GetPropertyChangedSignal("AbsoluteCanvasSize"):Connect(function()
+		local pad = if compact then 24 else 40
+		local maxH = Responsive.viewport().Y * (if compact then 0.7 else 0.8)
+		local h = math.clamp(self.paperBody.AbsoluteCanvasSize.Y / math.max(self.paper.AbsoluteSize.X / self.paper.Size.X.Offset, 1) + pad, 120, maxH)
+		-- AbsoluteCanvasSize is in screen pixels; convert back through the UI scale
+		local scale = 1
+		local gui = self.root:FindFirstAncestorOfClass("ScreenGui")
+		local uiScale = gui and gui:FindFirstChildOfClass("UIScale")
+		if uiScale then scale = uiScale.Scale end
+		h = math.clamp(self.paperBody.AbsoluteCanvasSize.Y / scale + pad, 120, maxH)
+		self.paper.Size = UDim2.new(self.paper.Size.X.Scale, self.paper.Size.X.Offset, 0, h)
+	end)
 
 	self:setItems(opts.items)
 	play(SOUND_OPEN, 0.5)
