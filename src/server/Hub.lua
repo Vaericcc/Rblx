@@ -13,7 +13,7 @@ local Hub = {}
 
 -- Geometry --------------------------------------------------------------------
 local COURT = 96 -- inner courtyard width (studs)
-local WALL_H = 26 -- lower walls so the courtyard isn't in permanent shadow
+local WALL_H = 30
 local WALL_T = 6
 local FLOOR_Y = 0 -- top of the flagstones
 local HILL_SIZE = 360
@@ -167,7 +167,8 @@ local function buildFloor()
 			local raised = ring < walk
 			local color = if raised then (if (ix + iz) % 2 == 0 then STONE_LIGHT else STONE) elseif (ix + iz) % 2 == 0 then Color3.fromRGB(222, 220, 214) else STONE_PALE
 			local y = if raised then FLOOR_Y + 1.5 else FLOOR_Y
-			block(Vector3.new(tile - 0.25, 1, tile - 0.25), CFrame.new(x, y - 0.5, z), color, Enum.Material.Slate, "Flag")
+			local thick = if raised then 2.5 else 1
+			block(Vector3.new(tile - 0.25, thick, tile - 0.25), CFrame.new(x, y - thick / 2, z), color, Enum.Material.Slate, "Flag")
 		end
 	end
 	-- step between walkway and plaza
@@ -181,7 +182,6 @@ local function buildFloor()
 		block(def[1], CFrame.new(def[2] + Vector3.new(0, FLOOR_Y + 0.375, 0)), STONE_LIGHT, Enum.Material.Slate, "Step")
 	end
 	block(Vector3.new(COURT, 1.2, COURT), CFrame.new(0, FLOOR_Y - 1.1, 0), MORTAR, Enum.Material.Concrete, "FloorCore")
-	block(Vector3.new(COURT, 1.5, COURT), CFrame.new(0, FLOOR_Y + 0.25, 0), MORTAR, Enum.Material.Concrete, "WalkCore")
 	-- Central dais: three steps and a plinth with a glowing emblem
 	for i, s in { 22, 17, 12 } do
 		block(Vector3.new(s, 1, s), CFrame.new(0, FLOOR_Y + i - 0.5, 0), if i % 2 == 0 then STONE_LIGHT else STONE_PALE, Enum.Material.Slate, "Dais")
@@ -244,7 +244,7 @@ local function buildGateway(cf: CFrame)
 	end
 	-- Pointed arch of voussoirs: wedge blocks rotated along the curve, proud of the wall so it reads from inside
 	local steps = 8
-	local peak = archH + 9
+	local peak = archH + 7
 	for i = 1, steps do
 		local frac = i / steps
 		local halfSpan = gapW / 2 * (1 - frac * frac)

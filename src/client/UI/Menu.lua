@@ -30,7 +30,7 @@ local Menu = {}
 Menu.__index = Menu
 
 export type Item = { id: string, label: string, onClick: (() -> ())?, accent: boolean?, disabled: boolean? }
-export type Opts = { title: string, items: { Item }, onClose: (() -> ())?, parent: Instance, stage: string?, dim: number? }
+export type Opts = { title: string, items: { Item }, onClose: (() -> ())?, parent: Instance, stage: string?, dim: number?, accent: Color3?, header: string? }
 
 export type Menu = typeof(setmetatable({} :: {
 	root: Frame,
@@ -47,6 +47,8 @@ export type Menu = typeof(setmetatable({} :: {
 	closed: boolean,
 	onClose: (() -> ())?,
 	stage: AvatarStage.AvatarStage?,
+	accent: Color3,
+	headerLabel: TextLabel?,
 }, Menu))
 
 local SOUND_OPEN = "open"
@@ -83,6 +85,8 @@ function Menu.open(opts: Opts): Menu
 	self.selected = nil
 	self.closed = false
 	self.onClose = opts.onClose
+	self.accent = opts.accent or Theme.cream
+	self.headerLabel = nil
 	local compact = Responsive.isCompact()
 
 	-- World treatment: blur + desaturate (local Lighting effects, removed on close)
@@ -112,9 +116,9 @@ function Menu.open(opts: Opts): Menu
 	if opts.stage == "solo" then
 		local holder = Make("Frame", {
 			BackgroundTransparency = 1,
-			Position = if compact then UDim2.fromScale(0.5, 0.45) else UDim2.fromScale(0.74, 0.5),
+			Position = if compact then UDim2.fromScale(0.5, 0.45) else UDim2.fromScale(0.36, 0.72),
 			AnchorPoint = Vector2.new(0.5, 0.5),
-			Size = if compact then UDim2.fromScale(1, 0.6) else UDim2.fromScale(0.5, 0.9),
+			Size = if compact then UDim2.fromScale(1, 0.6) else UDim2.fromScale(0.5, 0.95),
 			ZIndex = 300,
 			Parent = self.root,
 		})
@@ -169,24 +173,39 @@ function Menu.open(opts: Opts): Menu
 		Parent = self.root,
 	})
 	self.titleLabel.TextXAlignment = Enum.TextXAlignment.Center
+	self.titleLabel.TextColor3 = self.accent
 	tween(self.titleLabel, 0.5, { TextTransparency = 0 })
+
+	if opts.header then
+		self.headerLabel = Make.label(opts.header, if compact then 16 else 20, {
+			Font = Theme.fontDisplay, TextColor3 = Theme.ink, BackgroundColor3 = self.accent,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			Position = if compact then UDim2.new(0, 16, 0, 70) else UDim2.fromScale(0.16, 0.11),
+			Size = if compact then UDim2.new(1, -32, 0, 30) else UDim2.new(0.3, 0, 0, 36),
+			Rotation = if compact then 0 else -2,
+			ZIndex = 303,
+			Make.corner(UDim.new(0, 4)), Make("UIPadding", { PaddingLeft = UDim.new(0, 14) }),
+			Make("UIStroke", { Color = Theme.ink, Thickness = 3 }),
+			Parent = self.root,
+		})
+	end
 
 	-- Item bars
 	self.itemsFrame = Make("Frame", {
 		BackgroundTransparency = 1,
-		Position = if compact then UDim2.new(0, 16, 0, 84) else UDim2.fromScale(0.16, 0.18),
+		Position = if compact then UDim2.new(0, 16, 0, 108) else UDim2.fromScale(0.16, 0.2),
 		Size = if compact then UDim2.new(1, -32, 0, 0) else UDim2.fromScale(0.34, 0.7),
 		AutomaticSize = if compact then Enum.AutomaticSize.Y else Enum.AutomaticSize.None,
 		ZIndex = 303,
-		Make.list(nil, if compact then 6 else 10),
+		Make("UIListLayout", { FillDirection = Enum.FillDirection.Vertical, Padding = UDim.new(0, if compact then 6 else 10), SortOrder = Enum.SortOrder.LayoutOrder, HorizontalAlignment = Enum.HorizontalAlignment.Left }),
 		Parent = self.root,
 	})
 
 	-- Paper content panel
 	self.paper = Make("Frame", {
 		BackgroundColor3 = Theme.cream,
-		Position = if compact then UDim2.new(0, 12, 0, 0) else UDim2.fromScale(0.52, 0.1),
-		Size = if compact then UDim2.new(1, -24, 0, 200) else UDim2.new(0.44, 0, 0, 200),
+		Position = if compact then UDim2.new(0, 12, 0, 0) else UDim2.fromScale(0.58, 0.08),
+		Size = if compact then UDim2.new(1, -24, 0, 200) else UDim2.new(0.39, 0, 0, 200),
 		Rotation = if compact then 0 else -1.2,
 		ZIndex = 304,
 		Visible = false,
@@ -228,6 +247,27 @@ function Menu.open(opts: Opts): Menu
 	return self
 end
 
+function Menu.setChrome(self: Menu, title: string, accent: Color3, header: string?)
+	self.accent = accent
+	self.titleLabel.Text = title
+	self.titleLabel.TextColor3 = accent
+	if self.headerLabel then self.headerLabel:Destroy() self.headerLabel = nil end
+	if header then
+		local compact = Responsive.isCompact()
+		self.headerLabel = Make.label(header, if compact then 16 else 20, {
+			Font = Theme.fontDisplay, TextColor3 = Theme.ink, BackgroundColor3 = accent,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			Position = if compact then UDim2.new(0, 16, 0, 70) else UDim2.fromScale(0.16, 0.11),
+			Size = if compact then UDim2.new(1, -32, 0, 30) else UDim2.new(0.3, 0, 0, 36),
+			Rotation = if compact then 0 else -2,
+			ZIndex = 303,
+			Make.corner(UDim.new(0, 4)), Make("UIPadding", { PaddingLeft = UDim.new(0, 14) }),
+			Make("UIStroke", { Color = Theme.ink, Thickness = 3 }),
+			Parent = self.root,
+		})
+	end
+end
+
 function Menu.setItems(self: Menu, items: { Item })
 	self.items = items
 	for _, b in self.bars do b:Destroy() end
@@ -244,31 +284,32 @@ function Menu.setItems(self: Menu, items: { Item })
 			BackgroundColor3 = Theme.inkSoft,
 			BackgroundTransparency = if item.disabled then 0.5 else 0,
 			AutoButtonColor = false,
-			Size = UDim2.new(if compact then 1 else 0.82, 0, 0, h),
+			Size = UDim2.new(if compact then 1 else 0.78, 0, 0, h),
 			Position = UDim2.fromOffset(-500, 0),
-			Rotation = if compact then 0 else -2,
+			Rotation = if compact then 0 else -3,
 			LayoutOrder = i,
 			ZIndex = 303,
 			Make("UIStroke", { Color = Theme.cream, Thickness = 1.5, Transparency = 0.55 }),
 			Parent = self.itemsFrame,
 		})
 		-- Cascade in with overshoot
+		local restX = if compact then 0 else (i - 1) * 26
 		if motion() then
 			task.delay(0.05 * i, function()
 				if bar.Parent then
-					TweenService:Create(bar, TweenInfo.new(0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Position = UDim2.fromOffset(0, 0) }):Play()
+					TweenService:Create(bar, TweenInfo.new(0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Position = UDim2.fromOffset(restX, 0) }):Play()
 				end
 			end)
 		else
-			bar.Position = UDim2.fromOffset(0, 0)
+			bar.Position = UDim2.fromOffset(restX, 0)
 		end
 		bar.MouseEnter:Connect(function()
 			if item.disabled or self.selected == item.id then return end
-			tween(bar, 0.12, { Size = UDim2.new(if compact then 1 else 0.88, 0, 0, h), BackgroundColor3 = Color3.fromRGB(64, 58, 70) })
+			tween(bar, 0.12, { Size = UDim2.new(if compact then 1 else 0.84, 0, 0, h), BackgroundColor3 = Color3.fromRGB(64, 58, 70) })
 		end)
 		bar.MouseLeave:Connect(function()
 			if item.disabled or self.selected == item.id then return end
-			tween(bar, 0.15, { Size = UDim2.new(if compact then 1 else 0.82, 0, 0, h), BackgroundColor3 = Theme.inkSoft })
+			tween(bar, 0.15, { Size = UDim2.new(if compact then 1 else 0.78, 0, 0, h), BackgroundColor3 = Theme.inkSoft })
 		end)
 		bar.Activated:Connect(function()
 			if item.disabled then return end
@@ -289,9 +330,9 @@ function Menu.select(self: Menu, id: string?)
 		local on = itemId == id
 		local item: Item? = nil
 		for _, it in self.items do if it.id == itemId then item = it end end
-		local accent = if item and item.accent then Theme.pop else Theme.cream
+		local accent = if item and item.accent then Theme.pop else self.accent
 		tween(bar, 0.18, {
-			Size = UDim2.new(if compact then 1 else (if on then 0.95 else 0.82), 0, 0, h),
+			Size = UDim2.new(if compact then 1 else (if on then 0.9 else 0.78), 0, 0, h),
 			BackgroundColor3 = if on then accent else Theme.inkSoft,
 			BackgroundTransparency = 0,
 			TextColor3 = if on then Theme.ink else (if item and item.disabled then Theme.creamDark else Theme.cream),

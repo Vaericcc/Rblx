@@ -195,9 +195,14 @@ function Lobby.render(self: Lobby)
 	if self.page == "room" and not active then self.page = "join" end
 
 	if self.page == "room" then
+		local isPad = active.kind == "pad"
+		menu:setChrome(if isPad then "PLATFORM" else "YOUR ROOM", Theme.pop,
+			if isPad then ("PLATFORM %d  ·  %d/%d"):format(active.padIndex or 0, #active.members, active.maxPlayers)
+			else ("%s'S ROOM  ·  %s"):format(active.hostName:upper(), (VIS_NAME[active.visibility] or ""):upper()))
 		self:renderRoomMenu(menu, active)
 		return
 	end
+	menu:setChrome("STORYDUB", Theme.cream, nil)
 
 	local items: { Menu.Item } = {
 		{ id = "join", label = "JOIN", onClick = function() self.page = "join" self:render() end },
