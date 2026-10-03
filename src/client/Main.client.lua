@@ -330,15 +330,21 @@ local PHASE_SCREENS: { [string]: (Frame, any, any) -> any } = {
 
 local overlay: Frame? = nil
 local overlayLabel: TextLabel? = nil
-function setOverlay(message: string?)
+local overlayStyle: string? = nil
+-- style: nil = match loading (party on stage); "join" = first screen after joining,
+-- big title and your avatar waiting against a wall at the side.
+function setOverlay(message: string?, style: string?)
 	if not message then
-		if overlay then overlay:Destroy() overlay = nil overlayLabel = nil end
+		if overlay then overlay:Destroy() overlay = nil overlayLabel = nil overlayStyle = nil end
 		return
 	end
-	if overlay and overlayLabel then
+	if overlay and overlayLabel and overlayStyle == style then
 		overlayLabel.Text = message
 		return
 	end
+	if overlay then overlay:Destroy() overlay = nil overlayLabel = nil end
+	overlayStyle = style
+	local join = style == "join"
 	local compact = Responsive.isCompact()
 	overlay = Make("Frame", { BackgroundColor3 = Theme.ink, Size = UDim2.fromScale(1, 1), ZIndex = 200, Active = true, Parent = gui })
 	-- the slash, as in every menu
@@ -346,7 +352,7 @@ function setOverlay(message: string?)
 		BackgroundColor3 = Theme.inkSoft, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.22, 0.5),
 		Size = UDim2.new(0.42, 0, 2.6, 0), Rotation = if compact then 0 else 14, ZIndex = 201, Parent = overlay,
 	})
-	Make.label("LOADING", if compact then 44 else 96, {
+	Make.label(if join then "DUBBLE TAKE" else "LOADING", if compact then 44 elseif join then 84 else 96, {
 		Font = Theme.fontDisplay, TextColor3 = Theme.cream, TextXAlignment = Enum.TextXAlignment.Center, TextYAlignment = Enum.TextYAlignment.Center,
 		AnchorPoint = Vector2.new(0.5, 0.5), Rotation = if compact then 0 else -90,
 		Position = if compact then UDim2.new(0.5, 0, 0, 60) else UDim2.fromScale(0.07, 0.5),
@@ -368,6 +374,24 @@ function setOverlay(message: string?)
 			task.wait(0.5)
 		end
 	end)
+	if join then
+		-- Just you, waiting against a wall at the right edge of the screen
+		local stageHolder = Make("Frame", {
+			BackgroundTransparency = 1, ZIndex = 201,
+			Position = if compact then UDim2.fromScale(0.5, 0.64) else UDim2.fromScale(0.8, 0.56),
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Size = if compact then UDim2.fromScale(1, 0.6) else UDim2.fromScale(0.42, 0.92),
+			Parent = overlay,
+		})
+		local stage = AvatarStage.new(stageHolder, { mode = "lean" })
+		overlay.Destroying:Connect(function() stage:destroy() end)
+		Make.label("write it  ·  draw it  ·  dub it", 18, {
+			Font = Theme.fontBody, TextColor3 = Theme.creamDark, TextXAlignment = Enum.TextXAlignment.Left,
+			Position = if compact then UDim2.new(0, 24, 0, 150) else UDim2.fromScale(0.18, 0.49),
+			Size = UDim2.new(0, 520, 0, 30), ZIndex = 202, Parent = overlay,
+		})
+		return
+	end
 	-- The party (or just you) on stage, right side
 	local stageHolder = Make("Frame", {
 		BackgroundTransparency = 1, ZIndex = 201,
@@ -394,6 +418,20 @@ function setOverlay(message: string?)
 	})
 end
 
+-- The join screen stays up at least this long, and until your character has
+-- loaded, so the avatar on it is actually seen.
+local JOIN_MIN_SECONDS = 2.5
+local joinShownAt = 0
+local function dismissJoinScreen()
+	task.spawn(function()
+		local deadline = os.clock() + 6
+		while os.clock() < deadline and not (player.Character and player.Character:FindFirstChild("HumanoidRootPart")) do task.wait(0.1) end
+		local left = JOIN_MIN_SECONDS - (os.clock() - joinShownAt)
+		if left > 0 then task.wait(left) end
+		if overlayStyle == "join" then setOverlay(nil) end
+	end)
+end
+
 ----------------------------------------------------------------------------
 -- Server messages
 
@@ -401,7 +439,9 @@ local handlers: { [string]: (any) -> () } = {
 	[Net.S2C.LobbyInit] = function(data)
 		lobbyState.init = data
 		lobby:setInit(data)
-		if not data.isMatchServer and not inMatch then setOverlay(nil) end
+		if not data.isMatchServer and not inMatch then
+			if overlayStyle == "join" then dismissJoinScreen() else setOverlay(nil) end
+		end
 		if data.isMatchServer then
 			-- We're on a private match server: no hub UI, just wait for the round.
 			setInMatch(true)
@@ -461,8 +501,10 @@ Net.remote.OnClientEvent:Connect(function(action: string, data: any)
 	if handler then handler(data) end
 end)
 
--- Loading from the first frame until the hub answers
-setOverlay("Loading Dubble Take")
+-- Loading from the first frame until the hub answers, and for at least a
+-- couple of seconds so the join screen (and your avatar) are actually seen.
+joinShownAt = os.clock()
+setOverlay("Loading", "join")
 Net.remote:FireServer(Net.C2S.Hello)
 
 -- Resize / rotate: rescale, and rebuild the chrome if the layout class changed.

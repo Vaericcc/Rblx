@@ -138,7 +138,9 @@ function Tour.run(api: any)
 	api.lobby:closeMenu() api.lobby:setRoom(nil)
 	task.wait(0.5)
 
-	-- Match screens
+	-- Join screen (your avatar leaning on the wall), then match loading
+	api.setOverlay("Loading", "join") say("loading join") hold()
+	api.setOverlay(nil)
 	api.setInMatch(true)
 	api.setOverlay("Gathering your party... 1/4") say("loading") hold()
 	api.setOverlay(nil)

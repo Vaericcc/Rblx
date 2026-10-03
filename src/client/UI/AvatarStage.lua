@@ -2,10 +2,12 @@
 --[[
 	Characters behind menus and waiting screens, rendered in an isolated
 	ViewportFrame so walls and other players never get in the way.
-		AvatarStage.new(parent, { mode = "solo" | "party" })
+		AvatarStage.new(parent, { mode = "solo" | "party" | "lean" })
 		stage:addPlayer(player)   -- party mode: pops in with a glow
 		stage:destroy()
 	Solo: your avatar, slow orbit, idle animation. Party: lineup, static hero camera.
+	Lean: your avatar waiting against a wall (join screen), posed by hand with a
+	slow breathing sway, since there is no uploaded lean animation yet.
 ]]
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -26,6 +28,8 @@ export type AvatarStage = typeof(setmetatable({} :: {
 	order: { number },
 	angle: number,
 	conn: RBXScriptConnection?,
+	leanJoints: { { joint: Motor6D, c0: CFrame } }?,
+	leanRoot: CFrame?,
 }, AvatarStage))
 
 local IDLE_ANIM = "rbxassetid://507766666"
@@ -55,6 +59,36 @@ local function playIdle(model: Model)
 		track.Looped = true
 		track:Play()
 	end)
+end
+
+-- Hand-posed "waiting against a wall": weight on the back leg, front foot crossed
+-- over, arms folded, head turned a little toward the camera. Works on R15; an R6
+-- rig just gets the body tilt. Returns the joints touched so update() can breathe.
+local function poseLean(model: Model): { { joint: Motor6D, c0: CFrame } }
+	local touched = {}
+	local function bend(partName: string, jointName: string, rot: CFrame)
+		local part = model:FindFirstChild(partName)
+		local joint = part and part:FindFirstChild(jointName)
+		if joint and joint:IsA("Motor6D") then
+			table.insert(touched, { joint = joint, c0 = joint.C0 })
+			joint.C0 = joint.C0 * rot
+		end
+	end
+	local d = math.rad
+	-- torso: shoulders back into the wall, hips pushed slightly forward
+	bend("LowerTorso", "Root", CFrame.Angles(d(-6), 0, d(8)))
+	bend("UpperTorso", "Waist", CFrame.Angles(d(-4), d(-10), d(4)))
+	bend("Head", "Neck", CFrame.Angles(d(6), d(24), d(-6)))
+	-- arms folded across the chest
+	bend("LeftUpperArm", "LeftShoulder", CFrame.Angles(d(50), d(-25), d(-70)))
+	bend("LeftLowerArm", "LeftElbow", CFrame.Angles(d(95), 0, 0))
+	bend("RightUpperArm", "RightShoulder", CFrame.Angles(d(40), d(30), d(75)))
+	bend("RightLowerArm", "RightElbow", CFrame.Angles(d(105), 0, 0))
+	-- back leg straight and planted, front leg crossed over at the ankle
+	bend("LeftUpperLeg", "LeftHip", CFrame.Angles(d(4), 0, d(-10)))
+	bend("RightUpperLeg", "RightHip", CFrame.Angles(d(-6), d(10), d(22)))
+	bend("RightLowerLeg", "RightKnee", CFrame.Angles(d(-12), 0, 0))
+	return touched
 end
 
 function AvatarStage.new(parent: Instance, opts: { mode: string }): AvatarStage
@@ -88,7 +122,33 @@ function AvatarStage.new(parent: Instance, opts: { mode: string }): AvatarStage
 	floor.Material = Enum.Material.SmoothPlastic
 	floor.Parent = self.world
 
-	if self.mode == "solo" then
+	if self.mode == "lean" then
+		-- The wall: a tall cream slab with the pink slash, standing just behind
+		-- and to the avatar's left so the shoulder rests on it.
+		local wall = Instance.new("Part")
+		wall.Anchored = true
+		wall.Size = Vector3.new(14, 16, 1.2)
+		wall.CFrame = CFrame.new(-1.2, 8, 1.9) * CFrame.Angles(0, math.rad(-22), 0)
+		wall.Color = Theme.creamDark
+		wall.Material = Enum.Material.Concrete
+		wall.Parent = self.world
+		local stripe = Instance.new("Part")
+		stripe.Anchored = true
+		stripe.Size = Vector3.new(1.6, 16.2, 0.1)
+		stripe.CFrame = wall.CFrame * CFrame.new(-3.2, 0, -0.66) * CFrame.Angles(0, 0, math.rad(12))
+		stripe.Color = Theme.pop
+		stripe.Material = Enum.Material.SmoothPlastic
+		stripe.Parent = self.world
+		local skirting = Instance.new("Part")
+		skirting.Anchored = true
+		skirting.Size = Vector3.new(14, 0.9, 1.3)
+		skirting.CFrame = wall.CFrame * CFrame.new(0, -7.55, 0)
+		skirting.Color = Theme.ink
+		skirting.Material = Enum.Material.SmoothPlastic
+		skirting.Parent = self.world
+		floor.Color = Theme.inkSoft
+	end
+	if self.mode == "solo" or self.mode == "lean" then
 		self:addPlayer(Players.LocalPlayer)
 	end
 	self.conn = RunService.RenderStepped:Connect(function(dt)
@@ -100,6 +160,10 @@ end
 function AvatarStage.slotCFrame(self: AvatarStage, index: number, total: number): CFrame
 	if self.mode == "solo" then
 		return CFrame.new(0, 3, 0) * CFrame.Angles(0, math.pi, 0)
+	end
+	if self.mode == "lean" then
+		-- shoulder against the wall: body tilted back toward it, feet a little forward
+		return CFrame.new(0, 2.85, 0) * CFrame.Angles(0, math.pi + math.rad(18), 0) * CFrame.Angles(math.rad(-8), 0, math.rad(6))
 	end
 	local spacing = 4.5
 	local x = (index - (total + 1) / 2) * spacing
@@ -129,7 +193,12 @@ function AvatarStage.addPlayer(self: AvatarStage, player: Player)
 	self.clones[player.UserId] = model
 	table.insert(self.order, player.UserId)
 	self:relayout()
-	playIdle(model)
+	if self.mode == "lean" then
+		self.leanJoints = poseLean(model)
+		self.leanRoot = model:GetPivot()
+	else
+		playIdle(model)
+	end
 
 	-- Pop in with a glow
 	local highlight = Instance.new("Highlight")
@@ -142,7 +211,7 @@ function AvatarStage.addPlayer(self: AvatarStage, player: Player)
 	tween:Play()
 	tween.Completed:Once(function() highlight:Destroy() end)
 	local root = model:FindFirstChild("HumanoidRootPart")
-	if root and root:IsA("BasePart") then
+	if self.mode ~= "lean" and root and root:IsA("BasePart") then
 		local target = root.CFrame
 		model:PivotTo(target * CFrame.new(0, 3, 0))
 		local proxy = Instance.new("NumberValue")
@@ -162,6 +231,29 @@ function AvatarStage.removePlayer(self: AvatarStage, userId: number)
 end
 
 function AvatarStage.update(self: AvatarStage, dt: number)
+	if self.mode == "lean" then
+		-- camera parked front-right, slightly low, with a barely-there drift
+		self.angle += dt * 0.35
+		local sway = math.sin(self.angle) * 0.25
+		local eye = Vector3.new(7.5 + sway, 3.4, 9.5)
+		self.camera.CFrame = CFrame.lookAt(eye, Vector3.new(0.2, 2.9, 0))
+		self.camera.FieldOfView = 38
+		-- breathing: chest rises, head nods a touch
+		local model = self.clones[Players.LocalPlayer.UserId]
+		if model and self.leanRoot and self.leanJoints then
+			local breath = math.sin(self.angle * 2.2)
+			model:PivotTo(self.leanRoot * CFrame.new(0, breath * 0.03, 0))
+			for _, j in self.leanJoints do
+				local name = j.joint.Name
+				if name == "Waist" then
+					j.joint.C0 = j.c0 * CFrame.Angles(math.rad(-4 + breath * 1.2), math.rad(-10), math.rad(4))
+				elseif name == "Neck" then
+					j.joint.C0 = j.c0 * CFrame.Angles(math.rad(6 + breath * 1.5), math.rad(24 + math.sin(self.angle * 0.7) * 4), math.rad(-6))
+				end
+			end
+		end
+		return
+	end
 	if self.mode == "solo" then
 		self.angle += dt * 0.25
 		local r = 9

@@ -80,7 +80,7 @@ Every menu uses one animated system (`src/client/UI/Menu.lua`): a blurred, desat
 behind a diagonal ink slash, a huge vertical title, slanted item bars that cascade in, and a
 paper content panel. Your avatar stands behind the hub menu in an isolated viewport with a
 slow orbiting camera; waiting screens show the whole party lining up, each popping in with a
-glow. A LOADING screen in the same style covers match setup. The vote page is a Persona-style
+glow. A LOADING screen in the same style covers match setup, and a join screen with the title and your avatar waiting against a wall covers the first seconds after joining. The vote page is a Persona-style
 wall of tilted award cards you flick through and stamp. It drives Play, rooms, the in-match pause menu (Esc / P / Start) and a
 Settings page (volumes, auto-unmute, UI size, colour-blind palette, reduce motion).
 
