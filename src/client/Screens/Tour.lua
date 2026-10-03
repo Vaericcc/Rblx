@@ -1,9 +1,10 @@
 --!strict
 --[[
-	UI tour for screenshots (Studio only). Press F8: after a 10-second on-screen
-	countdown, every screen is shown with sample data for 5 seconds each, with a
-	label in the corner, and "TOUR: <step>" printed to Output. Pair it with
-	scripts/capture.ps1, which grabs the screen on the same cadence.
+	UI tour for screenshots (Studio only). Press F8 or type /tour: after a short
+	on-screen countdown, every screen is shown with sample data for a few seconds,
+	with a label in the corner, and "TOUR: <step>" printed to Output. Output goes
+	to the Studio log file, which scripts/capture.ps1 tails: it takes one shot per
+	"TOUR:" line, so the two stay in sync no matter when F8 is pressed.
 ]]
 local Players = game:GetService("Players")
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
@@ -15,7 +16,7 @@ local Theme = require(UI.Theme)
 local Tour = {}
 
 Tour.STEP_SECONDS = 5
-Tour.COUNTDOWN = 10
+Tour.COUNTDOWN = 3
 
 local function smiley(): { any }
 	local pts = {}
@@ -107,6 +108,7 @@ function Tour.run(api: any)
 		api.resetCamera()
 	end
 	reset()
+	print("TOUR: countdown")
 	for i = Tour.COUNTDOWN, 1, -1 do
 		label.Text = ("TOUR starts in %d  ·  switch to this window"):format(i)
 		task.wait(1)

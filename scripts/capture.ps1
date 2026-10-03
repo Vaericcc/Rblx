@@ -2,16 +2,18 @@
 #
 #   .\scripts\capture.ps1 -Name before     then   .\scripts\capture.ps1 -Name after
 #
-# 1. Start this script. It counts down 15 seconds.
-# 2. Click into the Studio play window and press F8 within those 15 seconds.
-#    The in-game tour counts down 10 s, then shows each screen for 5 s with a label.
-# 3. The script grabs the screen every 5 s, 20 times, stitches a sheet, and copies
-#    the newest Studio logs next to it. Output: screenshots\<Name>\sheet.png
+# 1. Start this script. It waits for the tour to begin (up to -WaitSeconds).
+# 2. Click into the Studio play window and press F8 (or type /tour).
+# 3. The tour prints "TOUR: <step>" to Output for every screen. Studio writes
+#    Output to its log file, so this script tails the newest log and takes one
+#    shot per step, -Settle seconds after the step appears (so animations finish).
+#    It stops on "TOUR: finished". Output: screenshots\<Name>\sheet.png, each
+#    thumbnail labelled with its step, plus the Studio logs.
 param(
   [string]$Name = "run",
-  [int]$Shots = 20,
-  [int]$Interval = 5,
-  [int]$Countdown = 15,
+  [double]$Settle = 1.8,
+  [int]$WaitSeconds = 120,
+  [int]$StepTimeout = 30,
   [int]$Columns = 4,
   [int]$ThumbWidth = 640
 )
@@ -46,32 +48,79 @@ function Get-CaptureRect {
   return [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
 }
 
-$root = Join-Path (Split-Path $PSScriptRoot -Parent) "screenshots"
-$dir = Join-Path $root $Name
-New-Item -ItemType Directory -Force -Path $dir | Out-Null
-Get-ChildItem $dir -Filter "shot_*.png" -ErrorAction SilentlyContinue | Remove-Item -Force
-
-for ($i = $Countdown; $i -gt 0; $i--) {
-  Write-Host ("Switch to Studio and press F8 ... capturing in {0}s" -f $i)
-  Start-Sleep -Seconds 1
-}
-
-$bounds = Get-CaptureRect
-Write-Host ("Capturing {0}x{1} at {2},{3}" -f $bounds.Width, $bounds.Height, $bounds.X, $bounds.Y)
-$files = @()
-for ($k = 1; $k -le $Shots; $k++) {
+function Take-Shot([string]$path) {
   $bounds = Get-CaptureRect
   $bmp = New-Object System.Drawing.Bitmap $bounds.Width, $bounds.Height
   $g = [System.Drawing.Graphics]::FromImage($bmp)
   $g.CopyFromScreen($bounds.Location, [System.Drawing.Point]::Empty, $bounds.Size)
   $g.Dispose()
-  $file = Join-Path $dir ("shot_{0:D2}.png" -f $k)
-  $bmp.Save($file, [System.Drawing.Imaging.ImageFormat]::Png)
+  $bmp.Save($path, [System.Drawing.Imaging.ImageFormat]::Png)
   $bmp.Dispose()
-  $files += $file
-  Write-Host ("captured {0}/{1}" -f $k, $Shots)
-  if ($k -lt $Shots) { Start-Sleep -Seconds $Interval }
+  return $bounds
 }
+
+# --- Studio log tail -------------------------------------------------------
+$logDir = Join-Path $env:LOCALAPPDATA "Roblox\logs"
+if (-not (Test-Path $logDir)) { Write-Error "Studio log folder not found: $logDir"; exit 1 }
+function Newest-Log {
+  Get-ChildItem $logDir -Filter "*.log" | Where-Object { $_.Name -match "Studio" } | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+}
+# A new log file appears when Play starts, so re-pick the newest file while waiting.
+$log = Newest-Log
+if (-not $log) { Write-Error "No Studio log found. Is Studio running?"; exit 1 }
+$offset = $log.Length
+$pending = New-Object System.Collections.Generic.Queue[string]
+
+function Pump-Log {
+  # Read new bytes from the newest Studio log and queue every "TOUR: <step>" line.
+  $latest = Newest-Log
+  if ($latest.FullName -ne $script:log.FullName) { $script:log = $latest; $script:offset = 0 }
+  $fs = [System.IO.File]::Open($script:log.FullName, 'Open', 'Read', 'ReadWrite')
+  try {
+    if ($fs.Length -lt $script:offset) { $script:offset = 0 }
+    $fs.Seek($script:offset, 'Begin') | Out-Null
+    $buf = New-Object byte[] ($fs.Length - $script:offset)
+    $n = $fs.Read($buf, 0, $buf.Length)
+    $script:offset += $n
+  } finally { $fs.Dispose() }
+  if ($n -le 0) { return }
+  $text = [System.Text.Encoding]::UTF8.GetString($buf, 0, $n)
+  foreach ($m in [regex]::Matches($text, 'TOUR: ([^\r\n]+)')) { $pending.Enqueue($m.Groups[1].Value.Trim()) }
+}
+
+function Next-Step([int]$timeoutSec) {
+  $deadline = (Get-Date).AddSeconds($timeoutSec)
+  while ((Get-Date) -lt $deadline) {
+    Pump-Log
+    if ($pending.Count -gt 0) { return $pending.Dequeue() }
+    Start-Sleep -Milliseconds 200
+  }
+  return $null
+}
+
+$root = Join-Path (Split-Path $PSScriptRoot -Parent) "screenshots"
+$dir = Join-Path $root $Name
+New-Item -ItemType Directory -Force -Path $dir | Out-Null
+Get-ChildItem $dir -Filter "shot_*.png" -ErrorAction SilentlyContinue | Remove-Item -Force
+
+Write-Host ("Tailing {0}" -f $log.Name)
+Write-Host ("Switch to Studio and press F8 (or type /tour). Waiting up to {0}s for the tour to start..." -f $WaitSeconds)
+$step = Next-Step $WaitSeconds
+if ($null -eq $step) { Write-Error "Tour never started (no 'TOUR:' line in the Studio log)."; exit 1 }
+
+$files = @(); $labels = @(); $bounds = $null
+while ($null -ne $step) {
+  if ($step -eq "finished") { break }
+  if ($step -in @("countdown", "done")) { $step = Next-Step $StepTimeout; continue }
+  Start-Sleep -Milliseconds ([int]($Settle * 1000))
+  $file = Join-Path $dir ("shot_{0:D2}_{1}.png" -f ($files.Count + 1), ($step -replace '[^\w]+', '_'))
+  $bounds = Take-Shot $file
+  $files += $file; $labels += $step
+  Write-Host ("captured #{0}  {1}" -f $files.Count, $step)
+  $step = Next-Step $StepTimeout
+}
+if ($null -eq $step) { Write-Warning "Tour went quiet for ${StepTimeout}s; building the sheet from what was captured." }
+if ($files.Count -eq 0) { Write-Error "Nothing captured."; exit 1 }
 
 # Contact sheet
 $thumbH = [int]($ThumbWidth * $bounds.Height / $bounds.Width)
@@ -90,7 +139,7 @@ for ($i = 0; $i -lt $files.Count; $i++) {
   $x = $pad + $col * ($ThumbWidth + $pad)
   $y = 50 + $pad + $row * ($thumbH + $pad + 28)
   $sg.DrawImage($img, $x, $y, $ThumbWidth, $thumbH)
-  $sg.DrawString(("#{0}" -f ($i + 1)), $small, $white, $x, $y + $thumbH + 4)
+  $sg.DrawString(("#{0}  {1}" -f ($i + 1), $labels[$i]), $small, $white, $x, $y + $thumbH + 4)
   $img.Dispose()
 }
 $sg.Dispose()
@@ -99,11 +148,8 @@ $sheet.Save($sheetPath, [System.Drawing.Imaging.ImageFormat]::Png)
 $sheet.Dispose()
 
 # Studio logs (newest two)
-$logDir = Join-Path $env:LOCALAPPDATA "Roblox\logs"
-if (Test-Path $logDir) {
-  Get-ChildItem $logDir -Filter "*.log" | Sort-Object LastWriteTime -Descending | Select-Object -First 2 | ForEach-Object {
-    Copy-Item $_.FullName (Join-Path $dir ("log_" + $_.Name)) -Force
-  }
+Get-ChildItem $logDir -Filter "*.log" | Sort-Object LastWriteTime -Descending | Select-Object -First 2 | ForEach-Object {
+  Copy-Item $_.FullName (Join-Path $dir ("log_" + $_.Name)) -Force
 }
 Write-Host ""
 Write-Host "Done. Send this file:" $sheetPath

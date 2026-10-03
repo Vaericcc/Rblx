@@ -213,17 +213,21 @@ If Studio reports that HTTP requests are not enabled, turn on
 
 ### Screenshot tour (for sending feedback)
 
-In Studio, press **F8** during a play test: after a 10-second countdown the client walks
-every screen with sample data, 5 seconds each, with a label in the corner. Pair it with:
+Start the capture script first, then press **F8** (or type `/tour`) in the Studio play window.
+The client walks every screen with sample data and prints `TOUR: <step>` to Output for each one.
+Studio writes Output to its log file, and the script tails that log and takes one shot per step,
+so the two stay in sync no matter when you press F8:
 
 ```powershell
-.\scripts\capture.ps1 -Name before      # 15 s countdown, then 20 screen grabs on the same cadence
+.\scripts\capture.ps1 -Name before      # waits for the tour, one shot per "TOUR:" step
 .\scripts\capture.ps1 -Name after
 .\scripts\compare.ps1 -Before before -After after
 ```
 
-Each run writes `screenshots\<name>\sheet.png` (a labelled contact sheet) and copies the two
-newest Studio logs beside it. The compare script puts two sheets side by side.
+Each run writes `screenshots\<name>\sheet.png` (a contact sheet labelled with step names) and
+copies the two newest Studio logs beside it. The compare script puts two sheets side by side.
+`-Settle 1.8` is how long the script waits after a step appears before shooting, so animations
+finish; raise it if shots look mid-transition.
 
 ### After either option
 
