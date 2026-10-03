@@ -53,7 +53,7 @@ local Config = {
 	MAX_STROKES_PER_PANEL = 250,
 	MAX_POINTS_PER_STROKE = 400,
 	MIN_BRUSH = 2,
-	MAX_BRUSH = 40,
+	MAX_BRUSH = 120, -- airbrush goes wide
 
 	-- Text limits
 	MAX_TITLE_LEN = 40,

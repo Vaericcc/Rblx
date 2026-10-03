@@ -5,6 +5,8 @@
 		t = "p" | "r" | "c" | "bg",  -- path, rectangle, circle, background fill (default "p")
 		c = {r, g, b},               -- 0..1 floats
 		w = number,                  -- outline width in canvas pixels, relative to a 1000px canvas
+		a = number?,                 -- opacity 0.05..1 (default 1)
+		s = boolean?,                -- paths only: soft edge (airbrush)
 		f = boolean?,                -- shapes only: filled instead of outlined
 		p = { x1, y1, x2, y2, ... }  -- normalized 0..1 coordinates, flat array
 		                             -- paths: polyline; shapes: two opposite corners; bg: unused
@@ -14,7 +16,7 @@ local Config = require(script.Parent.Config)
 
 local Strokes = {}
 
-export type Stroke = { t: string?, c: { number }, w: number, f: boolean?, p: { number } }
+export type Stroke = { t: string?, c: { number }, w: number, a: number?, s: boolean?, f: boolean?, p: { number } }
 
 local KINDS = { p = true, r = true, c = true, bg = true }
 
@@ -35,6 +37,8 @@ function Strokes.sanitizeOne(s: any): Stroke?
 		clamp01(tonumber(s.c[3]) or 0),
 	}
 	local width = math.clamp(tonumber(s.w) or 6, Config.MIN_BRUSH, Config.MAX_BRUSH)
+	local alpha = math.clamp(tonumber(s.a) or 1, 0.05, 1)
+	local soft = s.s == true
 	local points: { number } = {}
 	if typeof(s.p) == "table" then
 		local maxNums = if kind == "p" then Config.MAX_POINTS_PER_STROKE * 2 else 4
@@ -46,7 +50,7 @@ function Strokes.sanitizeOne(s: any): Stroke?
 		points[#points] = nil
 	end
 	if kind == "bg" then
-		return { t = "bg", c = color, w = width, p = {} }
+		return { t = "bg", c = color, w = width, a = alpha, p = {} }
 	end
 	if kind ~= "p" and #points ~= 4 then
 		return nil
@@ -54,7 +58,7 @@ function Strokes.sanitizeOne(s: any): Stroke?
 	if #points < 2 then
 		return nil
 	end
-	return { t = kind, c = color, w = width, f = if kind ~= "p" then s.f == true else nil, p = points }
+	return { t = kind, c = color, w = width, a = alpha, s = if kind == "p" and soft then true else nil, f = if kind ~= "p" then s.f == true else nil, p = points }
 end
 
 -- Returns a sanitized copy of a stroke list, or nil if it's garbage.
@@ -68,6 +72,10 @@ function Strokes.sanitize(raw: any): { Stroke }?
 		if s then table.insert(out, s) end
 	end
 	return out
+end
+
+function Strokes.copy(s: Stroke): Stroke
+	return { t = s.t, c = table.clone(s.c), w = s.w, a = s.a, s = s.s, f = s.f, p = table.clone(s.p) }
 end
 
 -- Geometry helpers used by the client's transform tool.
@@ -96,7 +104,7 @@ function Strokes.scaleAbout(s: Stroke, cx: number, cy: number, k: number)
 end
 
 function Strokes.mirrorX(s: Stroke): Stroke
-	local copy = { t = s.t, c = table.clone(s.c), w = s.w, f = s.f, p = table.clone(s.p) }
+	local copy = Strokes.copy(s)
 	for i = 1, #copy.p - 1, 2 do
 		copy.p[i] = 1 - copy.p[i]
 	end
@@ -120,7 +128,7 @@ function Strokes.toPath(s: Stroke): Stroke
 			table.insert(pts, cy + math.sin(a) * ry)
 		end
 	end
-	return { t = "p", c = table.clone(s.c), w = s.w, p = pts }
+	return { t = "p", c = table.clone(s.c), w = s.w, a = s.a, p = pts }
 end
 
 function Strokes.rotateAbout(s: Stroke, cx: number, cy: number, radians: number): Stroke

@@ -72,7 +72,7 @@ local function buildPad(index: number, position: Vector3): Pad
 
 	local billboard = Instance.new("BillboardGui")
 	billboard.Size = UDim2.fromOffset(260, 90)
-	billboard.StudsOffset = Vector3.new(0, 7, 0)
+	billboard.StudsOffset = Vector3.new(0, 5, 0)
 	billboard.AlwaysOnTop = false
 	billboard.MaxDistance = 120
 	billboard.Parent = part
@@ -143,7 +143,7 @@ end
 
 function Pads.init()
 	-- One pad in front of each gateway, inside the courtyard
-	local radius = 34
+	local radius = 26 -- inside the sunken plaza, clear of the raised walkway
 	for i = 1, Config.PAD_COUNT do
 		local angle = (i - 1) / Config.PAD_COUNT * math.pi * 2
 		local pos = Vector3.new(math.round(math.cos(angle)) * radius, 0.5, math.round(math.sin(angle)) * radius)

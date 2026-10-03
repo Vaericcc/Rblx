@@ -172,6 +172,7 @@ function Lobby.openMenu(self: Lobby)
 		title = "STORYDUB",
 		items = {},
 		parent = self.root,
+		stage = "solo",
 		onClose = function() self.menu = nil end,
 	})
 	self:render()

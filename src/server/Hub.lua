@@ -13,7 +13,7 @@ local Hub = {}
 
 -- Geometry --------------------------------------------------------------------
 local COURT = 96 -- inner courtyard width (studs)
-local WALL_H = 34
+local WALL_H = 26 -- lower walls so the courtyard isn't in permanent shadow
 local WALL_T = 6
 local FLOOR_Y = 0 -- top of the flagstones
 local HILL_SIZE = 360
@@ -61,8 +61,16 @@ local function masonry(origin: CFrame, length: number, height: number, thickness
 		while x < length / 2 do
 			local w = math.min(6, length / 2 - x)
 			if w <= 0.5 then break end
+			local roll = rng:NextInteger(1, 20)
 			local shade = ({ STONE, STONE, STONE_LIGHT, STONE_DARK })[rng:NextInteger(1, 4)]
-			block(Vector3.new(w - 0.25, course - 0.25, thickness), origin * CFrame.new(x + w / 2, y, 0), shade, Enum.Material.Slate, name)
+			local material = Enum.Material.Slate
+			if roll == 1 and c < 3 then
+				shade = Color3.fromRGB(78, 104, 70) -- moss on the low courses
+				material = Enum.Material.Grass
+			elseif roll == 2 then
+				material = Enum.Material.Cobblestone -- a cracked, rougher block
+			end
+			block(Vector3.new(w - 0.25, course - 0.25, thickness), origin * CFrame.new(x + w / 2, y, 0), shade, material, name)
 			x += w
 		end
 	end
@@ -73,10 +81,10 @@ end
 ----------------------------------------------------------------------------
 
 local function buildLighting()
-	Lighting.ClockTime = 13.2
-	Lighting.Brightness = 2.2
-	Lighting.Ambient = Color3.fromRGB(96, 100, 110)
-	Lighting.OutdoorAmbient = Color3.fromRGB(128, 134, 146)
+	Lighting.ClockTime = 12.6
+	Lighting.Brightness = 2.6
+	Lighting.Ambient = Color3.fromRGB(128, 132, 142)
+	Lighting.OutdoorAmbient = Color3.fromRGB(150, 156, 168)
 	Lighting.EnvironmentDiffuseScale = 0.7
 	Lighting.EnvironmentSpecularScale = 0.5
 	Lighting.GlobalShadows = true
@@ -149,34 +157,54 @@ end
 
 -- Flagstone floor: alternating pale/grey tiles with a darker border and a dais.
 local function buildFloor()
-	local tile = 8
+	local tile = 6
 	local n = COURT / tile
+	local walk = 2 -- tiles of raised walkway along the walls
 	for ix = 0, n - 1 do
 		for iz = 0, n - 1 do
 			local x = -COURT / 2 + ix * tile + tile / 2
 			local z = -COURT / 2 + iz * tile + tile / 2
-			local edge = ix == 0 or iz == 0 or ix == n - 1 or iz == n - 1
-			local color = if edge then STONE_DARK elseif (ix + iz) % 2 == 0 then STONE_PALE else STONE_LIGHT
-			block(Vector3.new(tile - 0.3, 1, tile - 0.3), CFrame.new(x, FLOOR_Y - 0.5, z), color, Enum.Material.Slate, "Flag")
+			local ring = math.min(ix, iz, n - 1 - ix, n - 1 - iz)
+			local raised = ring < walk
+			local color = if raised then (if (ix + iz) % 2 == 0 then STONE else STONE_DARK) elseif (ix + iz) % 2 == 0 then STONE_PALE else STONE_LIGHT
+			local y = if raised then FLOOR_Y + 1.5 else FLOOR_Y
+			block(Vector3.new(tile - 0.25, 1, tile - 0.25), CFrame.new(x, y - 0.5, z), color, Enum.Material.Slate, "Flag")
 		end
 	end
+	-- step between walkway and plaza
+	local inner = COURT / 2 - walk * tile
+	for _, def in {
+		{ Vector3.new(inner * 2 + 2, 0.75, 1), Vector3.new(0, 0, inner + 0.5) },
+		{ Vector3.new(inner * 2 + 2, 0.75, 1), Vector3.new(0, 0, -(inner + 0.5)) },
+		{ Vector3.new(1, 0.75, inner * 2), Vector3.new(inner + 0.5, 0, 0) },
+		{ Vector3.new(1, 0.75, inner * 2), Vector3.new(-(inner + 0.5), 0, 0) },
+	} do
+		block(def[1], CFrame.new(def[2] + Vector3.new(0, FLOOR_Y + 0.375, 0)), STONE_LIGHT, Enum.Material.Slate, "Step")
+	end
 	block(Vector3.new(COURT, 1.2, COURT), CFrame.new(0, FLOOR_Y - 1.1, 0), MORTAR, Enum.Material.Concrete, "FloorCore")
+	block(Vector3.new(COURT, 1.5, COURT), CFrame.new(0, FLOOR_Y + 0.25, 0), MORTAR, Enum.Material.Concrete, "WalkCore")
 	-- Central dais: three steps and a plinth with a glowing emblem
 	for i, s in { 22, 17, 12 } do
 		block(Vector3.new(s, 1, s), CFrame.new(0, FLOOR_Y + i - 0.5, 0), if i % 2 == 0 then STONE_LIGHT else STONE_PALE, Enum.Material.Slate, "Dais")
 	end
 	local plinth = block(Vector3.new(5, 6, 5), CFrame.new(0, FLOOR_Y + 6, 0), STONE_DARK, Enum.Material.Slate, "Plinth")
+	block(Vector3.new(6, 0.8, 6), CFrame.new(0, FLOOR_Y + 9.4, 0), STONE_LIGHT, Enum.Material.Slate, "PlinthCap")
+	-- recessed emblem: a shallow dark niche with a thin warm inlay, not a glowing cube
 	for _, rot in { 0, 90, 180, 270 } do
-		block(Vector3.new(3.4, 3.4, 0.4), CFrame.Angles(0, math.rad(rot), 0) * CFrame.new(0, FLOOR_Y + 7, 2.6), Color3.fromRGB(255, 196, 61), Enum.Material.Neon, "Emblem")
+		local r = CFrame.Angles(0, math.rad(rot), 0)
+		block(Vector3.new(2.6, 2.6, 0.3), r * CFrame.new(0, FLOOR_Y + 6.5, 2.45), MORTAR, Enum.Material.Concrete, "Niche")
+		local inlay = block(Vector3.new(1.6, 1.6, 0.15), r * CFrame.new(0, FLOOR_Y + 6.5, 2.55), Color3.fromRGB(255, 196, 61), Enum.Material.Neon, "Emblem")
+		inlay.Transparency = 0.25
+		inlay.CastShadow = false
 	end
 	local light = Instance.new("PointLight")
-	light.Color = Color3.fromRGB(255, 196, 61)
-	light.Range = 30
-	light.Brightness = 1.2
+	light.Color = Color3.fromRGB(255, 210, 140)
+	light.Range = 22
+	light.Brightness = 0.7
 	light.Parent = plinth
 	local sign = Instance.new("BillboardGui")
 	sign.Size = UDim2.fromOffset(420, 110)
-	sign.StudsOffset = Vector3.new(0, 8, 0)
+	sign.StudsOffset = Vector3.new(0, 15, 0)
 	sign.MaxDistance = 260
 	sign.Parent = plinth
 	local label = Instance.new("TextLabel")
@@ -193,33 +221,46 @@ end
 
 -- A gothic gateway: two piers, an arch built from stacked offset blocks, a dark doorway.
 local function buildGateway(cf: CFrame)
-	local pierW, gapW, archH = 6, 14, 26
+	local pierW, gapW, archH = 6, 14, 15 -- arch springs at 15 so it reads from the floor
 	local total = pierW * 2 + gapW
 	for side = -1, 1, 2 do
 		local x = side * (gapW / 2 + pierW / 2)
 		masonry(cf * CFrame.new(x, 0, 0), pierW, archH, WALL_T + 2, "Pier")
-		-- capital and pinnacle
-		block(Vector3.new(pierW + 1.5, 1.5, WALL_T + 3.5), cf * CFrame.new(x, archH + 0.75, 0), STONE_LIGHT, Enum.Material.Slate, "Capital")
-		block(Vector3.new(3, 8, 3), cf * CFrame.new(x, archH + 5.5, 0), STONE, Enum.Material.Slate, "Pinnacle")
-		block(Vector3.new(1.4, 3, 1.4), cf * CFrame.new(x, archH + 11, 0), STONE_LIGHT, Enum.Material.Slate, "Spike")
+		-- engaged column on the courtyard face, with base and capital
+		local colZ = -WALL_T / 2 - 1.6
+		part({ Name = "ColumnBase", Size = Vector3.new(2.6, 1, 2.6), CFrame = cf * CFrame.new(x, 0.5, colZ), Color = STONE_LIGHT })
+		part({ Name = "Column", Shape = Enum.PartType.Cylinder, Size = Vector3.new(archH - 2, 2, 2), CFrame = cf * CFrame.new(x, archH / 2, colZ) * CFrame.Angles(0, 0, math.rad(90)), Color = STONE_PALE, Material = Enum.Material.Marble })
+		part({ Name = "Capital", Size = Vector3.new(2.8, 1.2, 2.8), CFrame = cf * CFrame.new(x, archH - 0.4, colZ), Color = STONE_LIGHT })
+		-- pinnacle above the pier
+		block(Vector3.new(pierW + 1.5, 1.5, WALL_T + 3.5), cf * CFrame.new(x, WALL_H + 0.75, 0), STONE_LIGHT, Enum.Material.Slate, "PierCap")
+		block(Vector3.new(3, 7, 3), cf * CFrame.new(x, WALL_H + 5, 0), STONE, Enum.Material.Slate, "Pinnacle")
+		block(Vector3.new(1.4, 3, 1.4), cf * CFrame.new(x, WALL_H + 10, 0), STONE_LIGHT, Enum.Material.Slate, "Spike")
 	end
-	-- Pointed arch: stepped blocks rising to a peak
-	local steps = 7
+	-- Pointed arch of voussoirs: wedge blocks rotated along the curve, proud of the wall so it reads from inside
+	local steps = 8
+	local peak = archH + 9
 	for i = 1, steps do
 		local frac = i / steps
 		local halfSpan = gapW / 2 * (1 - frac * frac)
-		local y = archH + 1.5 + (i - 1) * 2.2
+		local y = archH + (i - 1) * (peak - archH) / steps
 		for side = -1, 1, 2 do
-			block(Vector3.new(3.6, 2.2, WALL_T + 2.5), cf * CFrame.new(side * (halfSpan + 1.6), y, 0), if i % 2 == 0 then STONE else STONE_LIGHT, Enum.Material.Slate, "Arch")
+			local tilt = side * frac * 55
+			block(Vector3.new(3.2, 2, WALL_T + 3), cf * CFrame.new(side * (halfSpan + 1.5), y, 0) * CFrame.Angles(0, 0, math.rad(tilt)),
+				if i % 2 == 0 then STONE_LIGHT else STONE_PALE, Enum.Material.Slate, "Voussoir")
 		end
 	end
-	block(Vector3.new(4, 3, WALL_T + 3), cf * CFrame.new(0, archH + 1.5 + steps * 2.2, 0), STONE_LIGHT, Enum.Material.Slate, "Keystone")
-	-- Wall above the arch up to full height, and the dark doorway behind
-	local above = WALL_H + 12 - (archH + 1.5 + steps * 2.2 + 1.5)
+	block(Vector3.new(3.6, 3.2, WALL_T + 3.4), cf * CFrame.new(0, peak + 0.6, 0), STONE_PALE, Enum.Material.Slate, "Keystone")
+	-- Masonry above the arch up to the parapet, and the dark doorway recessed behind
+	local above = WALL_H - (peak + 2)
 	if above > 0 then
-		masonry(cf * CFrame.new(0, archH + 1.5 + steps * 2.2 + 1.5, 0), total, above, WALL_T, "Lintel")
+		masonry(cf * CFrame.new(0, peak + 2, 0), total, above, WALL_T, "Lintel")
 	end
-	block(Vector3.new(gapW, archH + 14, 1), cf * CFrame.new(0, (archH + 14) / 2, WALL_T / 2 + 2), Color3.fromRGB(14, 14, 18), Enum.Material.SmoothPlastic, "Doorway")
+	block(Vector3.new(gapW, peak, 1), cf * CFrame.new(0, peak / 2, WALL_T / 2 + 2), Color3.fromRGB(10, 10, 14), Enum.Material.SmoothPlastic, "Doorway")
+	-- Tunnel walls so the opening has depth instead of a flat black slab
+	for side = -1, 1, 2 do
+		block(Vector3.new(1, peak, 4), cf * CFrame.new(side * (gapW / 2 + 0.5), peak / 2, WALL_T / 2 + 2), STONE_DARK, Enum.Material.Slate, "Reveal")
+	end
+	block(Vector3.new(gapW + 2, 1, 4), cf * CFrame.new(0, peak + 0.5, WALL_T / 2 + 2), STONE_DARK, Enum.Material.Slate, "RevealTop")
 	-- Torches flanking the doorway
 	for side = -1, 1, 2 do
 		local tx = side * (gapW / 2 + 1)
@@ -275,6 +316,9 @@ local function buildPlanters()
 	for _, p in { Vector3.new(d, 0, d), Vector3.new(-d, 0, d), Vector3.new(d, 0, -d), Vector3.new(-d, 0, -d) } do table.insert(spots, p) end
 	for _, p in { Vector3.new(0, 0, 24), Vector3.new(0, 0, -24), Vector3.new(24, 0, 0), Vector3.new(-24, 0, 0) } do table.insert(spots, p) end
 	for _, pos in spots do
+		-- corner planters sit on the raised walkway
+		local lift = if math.abs(pos.X) > COURT / 2 - 14 or math.abs(pos.Z) > COURT / 2 - 14 then 1.5 else 0
+		pos = pos + Vector3.new(0, lift, 0)
 		block(Vector3.new(7, 2.4, 7), CFrame.new(pos + Vector3.new(0, FLOOR_Y + 1.2, 0)), STONE_DARK, Enum.Material.Slate, "Planter")
 		block(Vector3.new(6, 0.6, 6), CFrame.new(pos + Vector3.new(0, FLOOR_Y + 2.5, 0)), SOIL, Enum.Material.Ground, "PlanterSoil")
 		for i = 1, 3 do
@@ -318,7 +362,7 @@ end
 
 local function buildTrees()
 	local models = treeModels()
-	local outer = COURT / 2 + WALL_T + 14
+	local outer = COURT / 2 + WALL_T + 26
 	local positions = {}
 	for t = 1, TERRACES do
 		local ring = outer + (t - 1) * 14 + 6

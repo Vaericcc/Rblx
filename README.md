@@ -63,13 +63,14 @@ movement are disabled so nothing gets in the way. See `docs/DESIGN.md` for the f
 
 ## Drawing tools
 
-Brush, eraser, rectangle, circle (outlined or filled), fill (tap a shape to fill it, tap
-empty paper to colour the background), mirror (draws a horizontal twin of every stroke) and
-lasso (circle several strokes to select them all). There is no separate select tool: with any
-tool, hovering a stroke highlights it and a tap selects it. The transform box has eight
-stretch handles (corners keep proportion), a rotate knob above it, drag-inside-to-move, and a
-submenu with Flip H, Flip V, Rotate 90, Warp (drag a corner to bend), Duplicate and Delete.
-Rotating or warping a rectangle or circle turns it into a path. Every stroke streams to the server as you draw, so a disconnect
+Brush, airbrush (soft, wide, builds up), eraser, rectangle, circle (outlined or filled), fill
+(tap a shape to fill it, tap empty paper to colour the background), lasso and transform.
+Size and opacity are sliders with a live preview; colour controls (swatches, recent colours
+and a hue-ring colour wheel) only appear for colour tools. Transform is its own tool so
+brushing never selects: in Transform, hovering a stroke highlights it and a tap selects it;
+the box has eight stretch handles (corners keep proportion), a rotate knob, drag-inside to
+move, and a floating strip under the box with Flip H, Flip V, Rotate 90, Warp, Duplicate and
+Delete. Rotating or warping a rectangle or circle turns it into a path. Every stroke streams to the server as you draw, so a disconnect
 loses nothing; the panel is committed when you submit or the timer ends. Players with nothing
 to draw watch the artists live.
 
@@ -77,7 +78,10 @@ to draw watch the artists live.
 
 Every menu uses one animated system (`src/client/UI/Menu.lua`): a blurred, desaturated world
 behind a diagonal ink slash, a huge vertical title, slanted item bars that cascade in, and a
-paper content panel. It drives Play, rooms, the in-match pause menu (Esc / P / Start) and a
+paper content panel. Your avatar stands behind the hub menu in an isolated viewport with a
+slow orbiting camera; waiting screens show the whole party lining up, each popping in with a
+glow. A LOADING screen in the same style covers match setup. The vote page is a Persona-style
+wall of tilted award cards you flick through and stamp. It drives Play, rooms, the in-match pause menu (Esc / P / Start) and a
 Settings page (volumes, auto-unmute, UI size, colour-blind palette, reduce motion).
 
 Fonts: Bangers for headings and buttons, Gotham Medium for body text, Patrick Hand for

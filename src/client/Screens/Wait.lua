@@ -7,25 +7,36 @@ local Theme = require(UI.Theme)
 local Canvas = require(UI.Canvas)
 local Layout = require(UI.Layout)
 local Responsive = require(UI.Responsive)
+local AvatarStage = require(UI.AvatarStage)
+local Players = game:GetService("Players")
 
 local Wait = {}
 
 function Wait.show(container: Frame, data: any, ctx: any)
 	local artists = data and data.artists or {}
 	if #artists == 0 then
+		-- The party on stage, each popping in with a glow, under a short note.
+		local stageHolder = Make("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 1, -80), Position = UDim2.fromOffset(0, 70), Parent = container })
+		local stage = AvatarStage.new(stageHolder, { mode = "party" })
+		local members = (ctx.partyMembers and ctx.partyMembers()) or {}
+		local queued = 0
+		for _, m in members do
+			local p = Players:GetPlayerByUserId(m.userId)
+			if p then
+				queued += 1
+				task.delay(0.35 * queued, function() if stageHolder.Parent then stage:addPlayer(p) end end)
+			end
+		end
+		if queued == 0 then stage:addPlayer(Players.LocalPlayer) end
 		local card = Make.card({
-			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.fromScale(0.5, 0.4),
-			Size = UDim2.new(0, 420, 0, 0),
-			AutomaticSize = Enum.AutomaticSize.Y,
-			Make.list(nil, 8, Enum.HorizontalAlignment.Center),
-			Parent = container,
+			AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.fromScale(0.5, 0), Size = UDim2.new(0, 520, 0, 0), AutomaticSize = Enum.AutomaticSize.Y,
+			Make.list(nil, 4, Enum.HorizontalAlignment.Center), Parent = container,
 		})
-		Make.heading("☕", 40, { TextXAlignment = Enum.TextXAlignment.Center, Size = UDim2.new(1, 0, 0, 50), Parent = card })
-		Make.label("Nothing for you this phase. Your turn comes soon.", 15, {
+		Make.heading("THE PARTY", 22, { Font = Theme.fontDisplay, TextXAlignment = Enum.TextXAlignment.Center, Parent = card })
+		Make.label(if data and data.phaseKind then "Others are busy with this phase. Your turn comes soon." else "Waiting for everyone...", 14, {
 			TextColor3 = Theme.textDim, TextXAlignment = Enum.TextXAlignment.Center, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, Parent = card,
 		})
-		return { collect = nil, destroy = function() container:ClearAllChildren() end }
+		return { collect = nil, destroy = function() stage:destroy() container:ClearAllChildren() end }
 	end
 
 	local root = Layout.form(container)

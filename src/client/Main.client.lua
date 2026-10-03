@@ -134,6 +134,7 @@ function togglePlayersMenu()
 	m = Menu.open({
 		title = "PAUSED",
 		parent = gui,
+		dim = 0.6,
 		items = {
 			{ id = "resume", label = "RESUME", onClick = function() togglePlayersMenu() end },
 			{ id = "players", label = "PLAYERS", onClick = function()
@@ -260,6 +261,11 @@ local autoSubmitThread: thread? = nil
 local ctx = {
 	hud = nil :: any,
 	markDirty = function() hud:unmarkSubmitted() end,
+	partyMembers = function()
+		if lobbyState.members then return lobbyState.members.members end
+		if lobbyState.room then return lobbyState.room.members end
+		return {}
+	end,
 }
 
 local function unmount()
@@ -312,31 +318,51 @@ local PHASE_SCREENS: { [string]: (Frame, any, any) -> any } = {
 -- Teleport / gathering overlay (private match servers)
 
 local overlay: Frame? = nil
+local overlayLabel: TextLabel? = nil
 local function setOverlay(message: string?)
-	if overlay then overlay:Destroy() overlay = nil end
-	if not message then return end
-	overlay = Make("Frame", {
-		BackgroundColor3 = Theme.bg,
-		Size = UDim2.fromScale(1, 1),
-		ZIndex = 200,
-		Active = true,
-		Parent = gui,
+	if not message then
+		if overlay then overlay:Destroy() overlay = nil overlayLabel = nil end
+		return
+	end
+	if overlay and overlayLabel then
+		overlayLabel.Text = message
+		return
+	end
+	local compact = Responsive.isCompact()
+	overlay = Make("Frame", { BackgroundColor3 = Theme.ink, Size = UDim2.fromScale(1, 1), ZIndex = 200, Active = true, Parent = gui })
+	-- the slash, as in every menu
+	Make("Frame", {
+		BackgroundColor3 = Theme.inkSoft, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.22, 0.5),
+		Size = UDim2.new(0.42, 0, 2.6, 0), Rotation = if compact then 0 else 14, ZIndex = 201, Parent = overlay,
 	})
-	local card = Make("Frame", {
-		BackgroundColor3 = Theme.panel,
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.new(0, 460, 0, 0),
-		AutomaticSize = Enum.AutomaticSize.Y,
-		ZIndex = 201,
-		Make.corner(),
-		Make.pad(24),
-		Make.list(nil, 10, Enum.HorizontalAlignment.Center),
-		Make("UISizeConstraint", { MaxSize = Vector2.new(Responsive.viewport().X - 32, math.huge) }),
-		Parent = overlay,
+	Make.label("LOADING", if compact then 44 else 96, {
+		Font = Theme.fontDisplay, TextColor3 = Theme.cream, TextXAlignment = Enum.TextXAlignment.Center, TextYAlignment = Enum.TextYAlignment.Center,
+		AnchorPoint = Vector2.new(0.5, 0.5), Rotation = if compact then 0 else -90,
+		Position = if compact then UDim2.new(0.5, 0, 0, 60) else UDim2.fromScale(0.07, 0.5),
+		Size = if compact then UDim2.new(1, -32, 0, 60) else UDim2.fromOffset(math.floor(Responsive.viewport().Y * 0.86), 120),
+		ZIndex = 202, Parent = overlay,
 	})
-	Make.heading("STORY<font color=\"#ffc43d\">DUB</font>", 30, { RichText = true, TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 202, Parent = card })
-	Make.label(message, 16, { TextColor3 = Theme.textDim, TextXAlignment = Enum.TextXAlignment.Center, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, ZIndex = 202, Parent = card })
+	overlayLabel = Make.label(message, 20, {
+		Font = Theme.fontBody, TextColor3 = Theme.cream, TextXAlignment = Enum.TextXAlignment.Left,
+		Position = if compact then UDim2.new(0, 24, 0, 120) else UDim2.fromScale(0.18, 0.42),
+		Size = UDim2.new(0, 520, 0, 80), ZIndex = 202, Parent = overlay,
+	})
+	-- animated dots
+	task.spawn(function()
+		local n = 0
+		while overlay and overlayLabel and overlay.Parent do
+			n = (n % 3) + 1
+			local base = overlayLabel.Text:gsub("%.+$", "")
+			overlayLabel.Text = base .. string.rep(".", n)
+			task.wait(0.5)
+		end
+	end)
+	-- MENU button at the side (opens settings / leave)
+	Make.button("MENU", Theme.cream, function() togglePlayersMenu() end, {
+		Font = Theme.fontDisplay, TextSize = 22, TextColor3 = Theme.ink, AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -24, 0, 24), Size = UDim2.fromOffset(110, 46), ZIndex = 202,
+		Make("UIStroke", { Color = Theme.ink, Thickness = 2 }), Parent = overlay,
+	})
 end
 
 ----------------------------------------------------------------------------
@@ -353,11 +379,18 @@ local handlers: { [string]: (any) -> () } = {
 	end,
 	[Net.S2C.Points] = function(data) lobby:setPoints(data.total or 0) end,
 	[Net.S2C.Teleporting] = function(data) setOverlay(if data then data.message else nil) end,
+	[Net.S2C.RoomState] = function(data)
+		lobbyState.room = data
+		lobby:setRoom(data)
+		if data and data.state == "playing" and not inMatch then
+			setInMatch(true)
+			setOverlay("Setting up your match")
+		end
+	end,
 	[Net.S2C.LiveStroke] = function(data)
 		if current and current.onLiveStroke then current.onLiveStroke(data) end
 	end,
 	[Net.S2C.RoomList] = function(data) lobbyState.rooms = data.rooms or {} lobby:setRooms(lobbyState.rooms) end,
-	[Net.S2C.RoomState] = function(data) lobbyState.room = data lobby:setRoom(data) end,
 	[Net.S2C.PadState] = function(data) lobbyState.pad = data lobby:setPad(data) end,
 
 	[Net.S2C.Phase] = function(data)
@@ -377,13 +410,14 @@ local handlers: { [string]: (any) -> () } = {
 	[Net.S2C.ClaimState] = function(data)
 		if current and current.onClaimState then current.onClaimState(data) end
 	end,
-	[Net.S2C.Showcase] = function(data) mount(Showcase.show, data, nil) end,
+	[Net.S2C.Showcase] = function(data) setOverlay(nil) mount(Showcase.show, data, nil) end,
 	[Net.S2C.ShowcaseFocus] = function(data)
 		if current and current.focus then current.focus(data.projectIndex, data.frameIndex, data.lineIndex, data.endsAt) end
 	end,
 	[Net.S2C.Vote] = function(data) mount(Vote.show, data, data.endsAt) end,
 	[Net.S2C.Results] = function(data) mount(Results.show, data, nil) end,
 	[Net.S2C.MatchEnd] = function()
+		setOverlay(nil)
 		if pauseMenu then togglePlayersMenu() end
 		unmount()
 		setInMatch(false)

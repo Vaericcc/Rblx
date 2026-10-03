@@ -24,12 +24,13 @@ local Make = require(script.Parent.Make)
 local Theme = require(script.Parent.Theme)
 local Responsive = require(script.Parent.Responsive)
 local Settings = require(script.Parent.Settings)
+local AvatarStage = require(script.Parent.AvatarStage)
 
 local Menu = {}
 Menu.__index = Menu
 
 export type Item = { id: string, label: string, onClick: (() -> ())?, accent: boolean?, disabled: boolean? }
-export type Opts = { title: string, items: { Item }, onClose: (() -> ())?, parent: Instance }
+export type Opts = { title: string, items: { Item }, onClose: (() -> ())?, parent: Instance, stage: string?, dim: number? }
 
 export type Menu = typeof(setmetatable({} :: {
 	root: Frame,
@@ -45,6 +46,7 @@ export type Menu = typeof(setmetatable({} :: {
 	color: ColorCorrectionEffect?,
 	closed: boolean,
 	onClose: (() -> ())?,
+	stage: AvatarStage.AvatarStage?,
 }, Menu))
 
 local SOUND_OPEN = "rbxasset://sounds/swoosh.wav"
@@ -101,7 +103,22 @@ function Menu.open(opts: Opts): Menu
 		Active = true,
 		Parent = opts.parent,
 	})
-	tween(self.root, 0.3, { BackgroundTransparency = 0.45 })
+	tween(self.root, 0.3, { BackgroundTransparency = opts.dim or 0.45 })
+
+	-- Your avatar behind the menu (isolated viewport, slow orbit)
+	self.stage = nil
+	if opts.stage == "solo" then
+		local holder = Make("Frame", {
+			BackgroundTransparency = 1,
+			Position = if compact then UDim2.fromScale(0.5, 0.45) else UDim2.fromScale(0.74, 0.5),
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Size = if compact then UDim2.fromScale(1, 0.6) else UDim2.fromScale(0.5, 0.9),
+			ZIndex = 300,
+			Parent = self.root,
+		})
+		self.stage = AvatarStage.new(holder, { mode = "solo" })
+		holder.ZIndex = 300
+	end
 
 	-- Diagonal ink slash: a tall rotated bar swept across the screen
 	self.slash = Make("Frame", {
@@ -304,6 +321,7 @@ function Menu.close(self: Menu)
 	task.delay(if motion() then 0.3 else 0, function()
 		if self.blur then self.blur:Destroy() end
 		if self.color then self.color:Destroy() end
+		if self.stage then self.stage:destroy() end
 		self.root:Destroy()
 	end)
 	if self.onClose then self.onClose() end
