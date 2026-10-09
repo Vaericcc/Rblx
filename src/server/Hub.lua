@@ -494,7 +494,10 @@ local function clearTemplate()
 	end
 	-- anything else big and flat at floor level (a terrain-less template floor)
 	for _, inst in workspace:GetChildren() do
-		if inst:IsA("BasePart") and inst.Size.X >= 400 and inst.Size.Z >= 400 then inst:Destroy() end
+		-- Terrain is a BasePart too and cannot be destroyed; skip it
+		if inst:IsA("BasePart") and not inst:IsA("Terrain") and inst.Size.X >= 400 and inst.Size.Z >= 400 then
+			pcall(function() inst:Destroy() end)
+		end
 	end
 end
 
